@@ -1,0 +1,32 @@
+{
+  "name": "Pauta & Takeaways Notes",
+  "description": "A template focusing on comparing planned agenda vs. actually discussed topics, with clear key takeaways.",
+  "sections": [
+    {
+      "title": "Pauta Planejada",
+      "instruction": "Outline the topics originally intended or proposed to be covered in the meeting.",
+      "format": "list"
+    },
+    {
+      "title": "Assuntos Abordados",
+      "instruction": "Detail the main points, responses, and outcomes for each topic discussed.",
+      "format": "list"
+    },
+    {
+      "title": "Desvios de Pauta",
+      "instruction": "List any skipped agenda items or new/unplanned topics introduced during the conversation.",
+      "format": "paragraph"
+    },
+    {
+      "title": "Principais Takeaways",
+      "instruction": "Summarize the high-value insights, takeaways, decisions, or strategic alignment points in bullet format.",
+      "format": "list"
+    },
+    {
+      "title": "Ações Imediatas",
+      "instruction": "List all immediate tasks assigned, owners, and agreed deadline checkpoints.",
+      "format": "list",
+      "item_format": "| **Owner** | Task / Takeaway | Due Date |"
+    }
+  ]
+}
