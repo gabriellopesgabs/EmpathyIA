@@ -1,0 +1,10 @@
+root ::= json-object
+json-object ::= "{" ws "\"summary\":" ws string "," ws "\"topics\":" ws topics-list "," ws "\"action_items\":" ws action-items-list ws "}"
+topics-list ::= "[" ws (topic-item ("," ws topic-item)*)? ws "]"
+topic-item ::= "{" ws "\"topic\":" ws string "," ws "\"points\":" ws string-list ws "}"
+action-items-list ::= "[" ws (action-item ("," ws action-item)*)? ws "]"
+action-item ::= "{" ws "\"task\":" ws string "," ws "\"assignee\":" ws string "," ws "\"due_date\":" ws string ws "}"
+string-list ::= "[" ws (string ("," ws string)*)? ws "]"
+
+string ::= "\"" ([^"\\] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\""
+ws ::= [ \t\n\r]*

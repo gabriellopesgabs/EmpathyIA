@@ -1,0 +1,42 @@
+{
+  "name": "Deep Analysis Notes",
+  "description": "An advanced template focusing on unresolved questions, risks, blockers, agenda coverage, and active speaker mapping.",
+  "sections": [
+    {
+      "title": "Executive Summary",
+      "instruction": "Provide a detailed executive summary of the meeting, highlighting the main objectives, discussion points, and overall outcomes.",
+      "format": "paragraph"
+    },
+    {
+      "title": "Key Decisions",
+      "instruction": "List the key decisions made during the meeting, noting any rationale or consensus reached.",
+      "format": "list"
+    },
+    {
+      "title": "Action Items",
+      "instruction": "List all assigned tasks with their owners, deadlines, and a reference transcript snippet/timestamp if possible.",
+      "format": "list",
+      "item_format": "| **Owner** | Task | Due | Reference Snippet |"
+    },
+    {
+      "title": "Open Questions",
+      "instruction": "List questions asked during the meeting that remained unanswered, required further research, or require follow-up validation.",
+      "format": "list"
+    },
+    {
+      "title": "Risks & Blockers",
+      "instruction": "Identify and list any technical risks, bottlenecks, potential blockers, or warnings discussed during the meeting.",
+      "format": "list"
+    },
+    {
+      "title": "Agenda vs. Realized",
+      "instruction": "Analyze if the planned agenda was fully addressed, noting any skipped items or new/unplanned topics introduced.",
+      "format": "paragraph"
+    },
+    {
+      "title": "Active Attendees",
+      "instruction": "List each speaker (e.g. Speaker 0, Speaker 1 or named speaker) who spoke during the meeting, and provide a 1-sentence summary of their primary contribution/focus.",
+      "format": "list"
+    }
+  ]
+}
