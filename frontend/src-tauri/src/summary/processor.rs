@@ -504,7 +504,7 @@ pub async fn generate_meeting_summary(
             }
         }
 
-        let (grammar, grammar_root) = if provider == &LLMProvider::BuiltInAI {
+        let (grammar, grammar_root) = if provider == &LLMProvider::BuiltInAI && template_id == "standard_meeting" {
             let grammar_str = include_str!("summary_schema.gbnf").to_string();
             (Some(grammar_str), Some("root".to_string()))
         } else {
@@ -530,7 +530,7 @@ pub async fn generate_meeting_summary(
         )
         .await?;
 
-        let processed_summary = if provider == &LLMProvider::BuiltInAI {
+        let processed_summary = if provider == &LLMProvider::BuiltInAI && template_id == "standard_meeting" {
             convert_structured_json_to_markdown(&raw_markdown).unwrap_or_else(|| {
                 log::warn!("Failed to parse structured JSON summary, falling back to raw output");
                 clean_llm_markdown_output(&raw_markdown)

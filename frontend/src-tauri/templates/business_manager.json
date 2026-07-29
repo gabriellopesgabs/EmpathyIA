@@ -1,0 +1,42 @@
+{
+  "name": "Business Manager Notes",
+  "description": "A strategic template focusing on business decisions, OKRs/KPIs, project timelines, and market risks.",
+  "sections": [
+    {
+      "title": "Executive Summary",
+      "instruction": "Provide a high-level executive summary of the discussion, focusing on strategic business goals, partnership status, and key achievements.",
+      "format": "paragraph"
+    },
+    {
+      "title": "Key Decisions",
+      "instruction": "List all major business, strategic, and financial decisions approved during the meeting.",
+      "format": "list"
+    },
+    {
+      "title": "Revenue & KPIs",
+      "instruction": "Detail any discussions surrounding KPIs, OKRs, sales performance, conversion metrics, or budget allocations.",
+      "format": "list"
+    },
+    {
+      "title": "Project Timelines",
+      "instruction": "List project milestones, delivery dates, schedules, or sprint plans discussed.",
+      "format": "list",
+      "item_format": "| Milestone | Target Date | Status | Details |"
+    },
+    {
+      "title": "Risks & Challenges",
+      "instruction": "Identify any market changes, resource bottlenecks, or project delivery risks mentioned.",
+      "format": "list"
+    },
+    {
+      "title": "Next Steps",
+      "instruction": "List all immediate action items with clear owners, timelines, and next checkpoints.",
+      "format": "list"
+    },
+    {
+      "title": "Active Attendees",
+      "instruction": "List the speakers who participated, outlining their main role or focus area in the discussion.",
+      "format": "list"
+    }
+  ]
+}

@@ -12,6 +12,9 @@ pub const STANDARD_MEETING: &str = include_str!("../../../templates/standard_mee
 /// Deep analysis notes template
 pub const DEEP_ANALYSIS: &str = include_str!("../../../templates/deep_analysis.json");
 
+/// Business manager notes template
+pub const BUSINESS_MANAGER: &str = include_str!("../../../templates/business_manager.json");
+
 /// Registry of all built-in templates
 ///
 /// Maps template identifiers to their embedded JSON content
@@ -20,6 +23,7 @@ pub fn get_builtin_templates() -> Vec<(&'static str, &'static str)> {
         ("daily_standup", DAILY_STANDUP),
         ("standard_meeting", STANDARD_MEETING),
         ("deep_analysis", DEEP_ANALYSIS),
+        ("business_manager", BUSINESS_MANAGER),
     ]
 }
 
@@ -35,13 +39,14 @@ pub fn get_builtin_template(id: &str) -> Option<&'static str> {
         "daily_standup" => Some(DAILY_STANDUP),
         "standard_meeting" => Some(STANDARD_MEETING),
         "deep_analysis" => Some(DEEP_ANALYSIS),
+        "business_manager" => Some(BUSINESS_MANAGER),
         _ => None,
     }
 }
 
 /// List all built-in template identifiers
 pub fn list_builtin_template_ids() -> Vec<&'static str> {
-    vec!["daily_standup", "standard_meeting", "deep_analysis"]
+    vec!["daily_standup", "standard_meeting", "deep_analysis", "business_manager"]
 }
 
 #[cfg(test)]
@@ -66,6 +71,7 @@ mod tests {
         assert!(get_builtin_template("daily_standup").is_some());
         assert!(get_builtin_template("standard_meeting").is_some());
         assert!(get_builtin_template("deep_analysis").is_some());
+        assert!(get_builtin_template("business_manager").is_some());
         assert!(get_builtin_template("nonexistent").is_none());
     }
 }
