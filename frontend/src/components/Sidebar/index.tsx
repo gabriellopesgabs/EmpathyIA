@@ -565,9 +565,9 @@ const Sidebar: React.FC = () => {
       <div key={item.id}>
         <div
           className={`flex items-center transition-all duration-150 group ${item.type === 'folder' && depth === 0
-            ? 'p-3 text-lg font-semibold h-10 mx-3 mt-3 rounded-lg'
-            : `px-3 py-2 my-0.5 rounded-md text-sm ${isActive ? 'bg-blue-100 text-blue-700 font-medium' :
-              hasTranscriptMatch ? 'bg-yellow-50' : 'hover:bg-gray-50'
+            ? 'p-3 text-lg font-semibold h-10 mx-3 mt-3 rounded-lg text-gray-800 dark:text-gray-200'
+            : `px-3 py-2 my-0.5 rounded-lg text-sm ${isActive ? 'bg-[#E3E3DC] text-gray-900 font-medium dark:bg-[#2D2D30] dark:text-white' :
+              hasTranscriptMatch ? 'bg-yellow-50' : 'hover:bg-black/5 dark:hover:bg-white/5'
             } cursor-pointer`
             }`}
           style={item.type === 'folder' && depth === 0 ? {} : { paddingLeft }}
@@ -585,16 +585,16 @@ const Sidebar: React.FC = () => {
           {item.type === 'folder' ? (
             <>
               {item.id === 'meetings' ? (
-                <Calendar className="w-4 h-4 mr-2" />
+                <Calendar className="w-4 h-4 mr-2" strokeWidth={1.5} />
               ) : item.id === 'notes' ? (
-                <Calendar className="w-4 h-4 mr-2" />
+                <Calendar className="w-4 h-4 mr-2" strokeWidth={1.5} />
               ) : null}
               <span className={depth === 0 ? "" : "font-medium"}>{item.title}</span>
               <div className="ml-auto">
                 {isExpanded ? (
-                  <ChevronDown className="w-4 h-4 text-gray-500" />
+                  <ChevronDown className="w-4 h-4 text-gray-500" strokeWidth={1.5} />
                 ) : (
-                  <ChevronRight className="w-4 h-4 text-gray-500" />
+                  <ChevronRight className="w-4 h-4 text-gray-500" strokeWidth={1.5} />
                 )}
               </div>
               {searchQuery && item.id === 'meetings' && isSearching && (
@@ -605,12 +605,12 @@ const Sidebar: React.FC = () => {
             <div className="flex flex-col w-full">
               <div className="flex items-center w-full">
                 {isMeetingItem ? (
-                  <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full mr-2 bg-gray-100">
-                    <File className="w-3.5 h-3.5 text-gray-600" />
+                  <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full mr-2 bg-gray-200/50 dark:bg-gray-800/50">
+                    <File className="w-3.5 h-3.5 text-gray-600 dark:text-gray-400" strokeWidth={1.5} />
                   </div>
                 ) : (
-                  <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full mr-2 bg-blue-100">
-                    <Plus className="w-3.5 h-3.5 text-blue-600" />
+                  <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full mr-2 bg-blue-100/50 dark:bg-blue-900/50">
+                    <Plus className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" strokeWidth={1.5} />
                   </div>
                 )}
                 <span className="flex-1 break-words">{item.title}</span>
@@ -621,20 +621,20 @@ const Sidebar: React.FC = () => {
                         e.stopPropagation();
                         handleEditStart(item.id, item.title);
                       }}
-                      className="hover:text-blue-600 p-1 rounded-md hover:bg-blue-50 flex-shrink-0"
+                      className="hover:text-blue-600 dark:hover:text-blue-400 p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/5 flex-shrink-0"
                       aria-label="Edit meeting title"
                     >
-                      <Pencil className="w-4 h-4" />
+                      <Pencil className="w-4 h-4" strokeWidth={1.5} />
                     </button>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         setDeleteModalState({ isOpen: true, itemId: item.id });
                       }}
-                      className="hover:text-red-600 p-1 rounded-md hover:bg-red-50 flex-shrink-0"
+                      className="hover:text-red-600 dark:hover:text-red-400 p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/5 flex-shrink-0"
                       aria-label="Delete meeting"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-4 h-4" strokeWidth={1.5} />
                     </button>
                   </div>
                 )}
@@ -663,18 +663,18 @@ const Sidebar: React.FC = () => {
       {/* Floating collapse button */}
       <button
         onClick={toggleCollapse}
-        className="absolute -right-6 top-20 z-50 p-1 bg-white hover:bg-gray-100 rounded-full shadow-lg border"
+        className="absolute -right-6 top-20 z-50 p-1 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full shadow-lg border border-gray-200 dark:border-gray-700"
         style={{ transform: 'translateX(50%)' }}
       >
         {isCollapsed ? (
-          <ChevronRightCircle className="w-6 h-6" />
+          <ChevronRightCircle className="w-6 h-6 text-gray-600 dark:text-gray-400" strokeWidth={1.5} />
         ) : (
-          <ChevronLeftCircle className="w-6 h-6" />
+          <ChevronLeftCircle className="w-6 h-6 text-gray-600 dark:text-gray-400" strokeWidth={1.5} />
         )}
       </button>
 
       <div
-        className={`h-screen bg-white border-r shadow-sm flex flex-col transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-64'
+        className={`h-screen bg-[#F4F4F0]/80 dark:bg-[#1C1C1E]/80 backdrop-blur-xl border-r border-[#E2E2DC]/50 dark:border-[#2C2C2E]/50 shadow-sm flex flex-col transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-64'
           }`}
       >
         {/*  Header with traffic light spacing */}
@@ -687,7 +687,7 @@ const Sidebar: React.FC = () => {
           <div className="flex-1">
             {!isCollapsed && (
               <div className="p-3">
-                <span className="text-lg text-center border rounded-full bg-blue-50 border-white font-semibold text-gray-700 mb-2 block items-center py-1">
+                <span className="text-lg text-center font-bold text-gray-800 dark:text-gray-200 mb-2 block items-center py-1 tracking-tight">
                   <span>Empathy.AI</span>
                 </span>
 
@@ -697,14 +697,14 @@ const Sidebar: React.FC = () => {
                       onChange={(e) => handleSearchChange(e.target.value)}
                     />
                     <InputGroupAddon>
-                      <SearchIcon />
+                      <SearchIcon strokeWidth={1.5} />
                     </InputGroupAddon>
                     {searchQuery &&
                       <InputGroupAddon align={'inline-end'}>
                         <InputGroupButton
                           onClick={() => handleSearchChange('')}
                         >
-                          <X />
+                          <X strokeWidth={1.5} />
                         </InputGroupButton>
                       </InputGroupAddon>
                     }
@@ -722,9 +722,9 @@ const Sidebar: React.FC = () => {
             {!isCollapsed && (
               <div
                 onClick={() => router.push('/')}
-                className="p-3  text-lg font-semibold items-center hover:bg-gray-100 h-10   flex mx-3 mt-3 rounded-lg cursor-pointer"
+                className="p-3 text-sm font-medium items-center hover:bg-black/5 dark:hover:bg-white/5 h-10 flex mx-3 mt-3 rounded-lg cursor-pointer text-gray-700 dark:text-gray-300"
               >
-                <Home className="w-4 h-4 mr-2" />
+                <Home className="w-4 h-4 mr-2" strokeWidth={1.5} />
                 <span>Home</span>
               </div>
             )}
@@ -739,10 +739,10 @@ const Sidebar: React.FC = () => {
                 {filteredSidebarItems.filter(item => item.type === 'folder').map(item => (
                   <div key={item.id}>
                     <div
-                      className="flex items-center transition-all duration-150 p-3 text-lg font-semibold h-10 mx-3 mt-3 rounded-lg"
+                      className="flex items-center transition-all duration-150 p-3 text-sm font-semibold h-10 mx-3 mt-3 rounded-lg text-gray-500 dark:text-gray-400"
                     >
-                      <NotebookPen className="w-4 h-4 mr-2 text-gray-600" />
-                      <span className="text-gray-700">{item.title}</span>
+                      <NotebookPen className="w-4 h-4 mr-2" strokeWidth={1.5} />
+                      <span>{item.title}</span>
                       {searchQuery && item.id === 'meetings' && isSearching && (
                         <span className="ml-2 text-xs text-blue-500 animate-pulse">Searching...</span>
                       )}
@@ -770,20 +770,20 @@ const Sidebar: React.FC = () => {
         {/* Footer */}
         {!isCollapsed && (
 
-          <div className="flex-shrink-0 p-2 border-t border-gray-100">
+          <div className="flex-shrink-0 p-3 border-t border-[#E2E2DC]/50 dark:border-[#2C2C2E]/50">
             <button
               onClick={handleRecordingToggle}
               disabled={isRecording}
-              className={`w-full flex items-center justify-center px-3 py-2 text-sm font-medium text-white ${isRecording ? 'bg-red-300 cursor-not-allowed' : 'bg-red-500 hover:bg-red-600'} rounded-lg transition-colors shadow-sm`}
+              className={`w-full flex items-center justify-center px-3 py-2 text-sm font-medium text-white ${isRecording ? 'bg-red-400/80 cursor-not-allowed' : 'bg-gradient-to-b from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shadow-sm border border-red-700/10'} rounded-lg transition-all`}
             >
               {isRecording ? (
                 <>
-                  <Square className="w-4 h-4 mr-2" />
-                  <span>Recording in progress...</span>
+                  <Square className="w-4 h-4 mr-2" strokeWidth={1.5} />
+                  <span>Recording...</span>
                 </>
               ) : (
                 <>
-                  <Mic className="w-4 h-4 mr-2" />
+                  <Mic className="w-4 h-4 mr-2" strokeWidth={1.5} />
                   <span>Start Recording</span>
                 </>
               )}
@@ -792,22 +792,22 @@ const Sidebar: React.FC = () => {
             {betaFeatures.importAndRetranscribe && (
               <button
                 onClick={() => openImportDialog()}
-                className="w-full flex items-center justify-center px-3 py-2 mt-1 text-sm font-medium text-gray-700 bg-blue-100 hover:bg-blue-200 rounded-lg transition-colors shadow-sm"
+                className="w-full flex items-center justify-center px-3 py-2 mt-1.5 text-sm font-medium text-white bg-gradient-to-b from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-lg transition-all shadow-sm border border-blue-700/10"
               >
-                <Upload className="w-4 h-4 mr-2" />
+                <Upload className="w-4 h-4 mr-2" strokeWidth={1.5} />
                 <span>Import Audio</span>
               </button>
             )}
 
             <button
               onClick={() => router.push('/settings')}
-              className="w-full flex items-center justify-center px-3 py-1.5 mt-1 mb-1 text-sm font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors shadow-sm"
+              className="w-full flex items-center justify-center px-3 py-1.5 mt-1.5 mb-1 text-sm font-medium text-gray-700 dark:text-gray-300 bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 rounded-lg transition-all"
             >
-              <Settings className="w-4 h-4 mr-2" />
+              <Settings className="w-4 h-4 mr-2" strokeWidth={1.5} />
               <span>Settings</span>
             </button>
             <Info isCollapsed={isCollapsed} />
-            <div className="w-full flex items-center justify-center px-3 py-1 text-xs text-gray-400">
+            <div className="w-full flex items-center justify-center px-3 py-1 text-[10px] text-gray-400 dark:text-gray-500">
               v0.4.0
             </div>
           </div>
