@@ -258,10 +258,9 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                 {isPaused ? 'Click resume to continue recording' : 'Speak to see live transcription'}
                             </p>
                         </>
-                    ) : (
                         <div className="flex flex-col items-center justify-center py-6 px-4">
-                            <p className="text-xl font-bold text-gray-800">Welcome to Empathy.AI!</p>
-                            <p className="text-sm text-gray-500 mt-1 mb-8">Start recording to see live transcription</p>
+                            <p className="text-3xl font-bold font-serif text-gray-800 tracking-tight">Welcome to Empathy.AI</p>
+                            <p className="text-sm text-gray-500 mt-2 mb-8">Start recording or drop an audio file to see live transcription</p>
                             
                             <motion.div
                                 whileHover={{ scale: 1.02 }}
