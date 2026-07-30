@@ -1,9 +1,26 @@
 use std::path::Path;
 use std::sync::OnceLock;
 use log::info;
+use serde::{Deserialize, Serialize};
+
+/// Detailed hardware recommendations DTO for frontend
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HardwareRecommendation {
+    pub cpu_cores: u8,
+    pub memory_gb: u8,
+    pub gpu_type: String,
+    pub has_gpu_acceleration: bool,
+    pub performance_tier: String, // "Low", "Medium", "High", "Ultra"
+    pub recommended_transcription_engine: String, // e.g. "Parakeet TDT 0.6B (Metal/GPU)" or "Whisper Tiny (CPU)"
+    pub recommended_transcription_model: String,
+    pub recommended_summary_provider: String, // e.g. "Built-in AI (qwen3.5:4b)" or "Cloud Provider"
+    pub recommended_summary_model: String,
+    pub max_recommended_context: usize,
+    pub explanation: String,
+}
 
 /// Hardware capabilities for audio processing optimization
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HardwareProfile {
     pub cpu_cores: u8,
     pub has_gpu_acceleration: bool,
@@ -12,7 +29,7 @@ pub struct HardwareProfile {
     pub performance_tier: PerformanceTier,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GpuType {
     None,
     Metal,      // Apple Silicon
@@ -21,7 +38,7 @@ pub enum GpuType {
     OpenCL,     // Generic GPU compute
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PerformanceTier {
     Low,      // CPU-only, limited resources
     Medium,   // CPU-only but powerful, or basic GPU
@@ -260,17 +277,75 @@ impl HardwareProfile {
         }
     }
 
-    /// Check if hardware can handle real-time processing of given sample rate
-    pub fn can_handle_realtime(&self, sample_rate: u32, channels: u16) -> bool {
-        let data_rate = sample_rate * channels as u32;
+    /// Generate comprehensive hardware recommendations for transcription and LLM models
+    pub fn get_recommendations(&self) -> HardwareRecommendation {
+        let (gpu_name, tier_str) = match (self.gpu_type, self.performance_tier) {
+            (GpuType::Metal, PerformanceTier::Ultra) => ("Apple Silicon (Metal GPU)", "Ultra"),
+            (GpuType::Metal, _) => ("Apple Silicon (Metal GPU)", "High"),
+            (GpuType::Cuda, PerformanceTier::Ultra) => ("NVIDIA CUDA GPU", "Ultra"),
+            (GpuType::Cuda, _) => ("NVIDIA CUDA GPU", "High"),
+            (GpuType::Vulkan, _) => ("Vulkan GPU", "Medium"),
+            (GpuType::OpenCL, _) => ("OpenCL GPU", "Medium"),
+            (GpuType::None, PerformanceTier::Medium) => ("CPU High-Performance", "Medium"),
+            (GpuType::None, _) => ("CPU Standard", "Low"),
+        };
 
-        match self.performance_tier {
-            PerformanceTier::Ultra => data_rate <= 192000, // Up to 192kHz stereo
-            PerformanceTier::High => data_rate <= 96000,   // Up to 96kHz stereo or 192kHz mono
-            PerformanceTier::Medium => data_rate <= 48000, // Up to 48kHz stereo
-            PerformanceTier::Low => data_rate <= 22050,    // Up to 22kHz stereo or 48kHz mono
+        let (tx_engine, tx_model, llm_provider, llm_model, ctx, explanation) = match self.performance_tier {
+            PerformanceTier::Ultra | PerformanceTier::High => (
+                "parakeet".to_string(),
+                "parakeet-tdt-0.6b-v3-int8".to_string(),
+                "builtin-ai".to_string(),
+                "qwen3.5:4b".to_string(),
+                8192,
+                format!(
+                    "Hardware de alta performance detectado ({} cores CPU, GPU {}, ~{}GB RAM). Recomendado uso local acelerado por GPU com Parakeet TDT para transcrição instantânea e Qwen 3.5 (4B) para resumos ricos.",
+                    self.cpu_cores, gpu_name, self.memory_gb
+                ),
+            ),
+            PerformanceTier::Medium => (
+                "parakeet".to_string(),
+                "parakeet-tdt-0.6b-v3-int8".to_string(),
+                "builtin-ai".to_string(),
+                "qwen3.5:4b".to_string(),
+                4096,
+                format!(
+                    "Hardware intermediário detectado ({} cores CPU, {}). Parakeet TDT é recomendado para transcrição leve e Qwen 3.5 local para resumos sem sobrecarregar a memória.",
+                    self.cpu_cores, gpu_name
+                ),
+            ),
+            PerformanceTier::Low => (
+                "whisper".to_string(),
+                "tiny".to_string(),
+                "openrouter".to_string(),
+                "google/gemini-2.5-flash".to_string(),
+                2048,
+                format!(
+                    "Hardware limitado ({} cores CPU, sem aceleração de GPU dedicada). Recomendado Whisper Tiny local para transcrição de baixo consumo e API externa (OpenRouter/Groq) para resumos sem travar a máquina.",
+                    self.cpu_cores
+                ),
+            ),
+        };
+
+        HardwareRecommendation {
+            cpu_cores: self.cpu_cores,
+            memory_gb: self.memory_gb,
+            gpu_type: gpu_name.to_string(),
+            has_gpu_acceleration: self.has_gpu_acceleration,
+            performance_tier: tier_str.to_string(),
+            recommended_transcription_engine: tx_engine,
+            recommended_transcription_model: tx_model,
+            recommended_summary_provider: llm_provider,
+            recommended_summary_model: llm_model,
+            max_recommended_context: ctx,
+            explanation,
         }
     }
+}
+
+/// Tauri command to expose hardware benchmark & recommendation to frontend
+#[tauri::command]
+pub fn get_hardware_recommendations() -> HardwareRecommendation {
+    HardwareProfile::detect().get_recommendations()
 }
 
 #[cfg(test)]

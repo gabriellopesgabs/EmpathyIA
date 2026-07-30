@@ -368,6 +368,7 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({ transcripts, isR
                 {isPaused
                   ? 'Click resume to continue recording'
                   : 'Speak to see live transcription'}
+              </p>
             </>
           ) : (
             <div className="flex flex-col items-center justify-center py-6 px-4">

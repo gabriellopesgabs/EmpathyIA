@@ -33,6 +33,17 @@ export function WelcomeStep() {
         {/* Divider */}
         <div className="w-16 h-px bg-gray-300" />
 
+        {/* Disclaimer de Privacidade Destacado */}
+        <div className="w-full max-w-md bg-emerald-50/80 border border-emerald-200/80 rounded-xl p-4 shadow-sm text-center">
+          <div className="flex items-center justify-center gap-2 mb-1.5 text-emerald-800 font-semibold text-sm">
+            <Lock className="w-4 h-4 text-emerald-600" />
+            <span>Privacy-First por Princípio</span>
+          </div>
+          <p className="text-xs text-emerald-900 leading-relaxed font-medium">
+            Esta aplicação não é apenas <span className="font-bold">AI First</span>, é <span className="font-bold">Privacy First</span>. Nada sai do seu computador e todos os seus dados pertencem a você.
+          </p>
+        </div>
+
         {/* Features Card */}
         <div className="w-full max-w-md bg-white rounded-lg border border-gray-200 shadow-sm p-6 space-y-4">
           {features.map((feature, index) => {

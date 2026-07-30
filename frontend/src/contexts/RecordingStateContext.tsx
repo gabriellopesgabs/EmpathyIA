@@ -131,7 +131,7 @@ export function RecordingStateProvider({ children }: { children: React.ReactNode
    * Set up event listeners for backend state changes
    */
   useEffect(() => {
-    console.log('[RecordingStateContext] Setting up event listeners');
+    let isCleanedUp = false;
     const unsubscribers: (() => void)[] = [];
 
     const setupListeners = async () => {
@@ -148,21 +148,20 @@ export function RecordingStateProvider({ children }: { children: React.ReactNode
           }));
           startPolling();
         });
+        if (isCleanedUp) { unlistenStarted(); return; }
         unsubscribers.push(unlistenStarted);
 
         // Recording stopped
         const unlistenStopped = await recordingService.onRecordingStopped((payload) => {
           console.log('[RecordingStateContext] Recording stopped event:', payload);
           setState(prev => {
-            // Set status to STOPPING if not already in stop flow
-            // This ensures smooth UI transition for tray/keyboard stops
             const newStatus = [
               RecordingStatus.STOPPING,
               RecordingStatus.PROCESSING_TRANSCRIPTS,
               RecordingStatus.SAVING
             ].includes(prev.status)
-              ? prev.status  // Already in stop flow
-              : RecordingStatus.STOPPING;  // New stop, transition smoothly
+              ? prev.status
+              : RecordingStatus.STOPPING;
 
             return {
               ...prev,
@@ -177,6 +176,7 @@ export function RecordingStateProvider({ children }: { children: React.ReactNode
           });
           stopPolling();
         });
+        if (isCleanedUp) { unlistenStopped(); return; }
         unsubscribers.push(unlistenStopped);
 
         // Recording paused
@@ -188,6 +188,7 @@ export function RecordingStateProvider({ children }: { children: React.ReactNode
             isActive: false,
           }));
         });
+        if (isCleanedUp) { unlistenPaused(); return; }
         unsubscribers.push(unlistenPaused);
 
         // Recording resumed
@@ -199,6 +200,7 @@ export function RecordingStateProvider({ children }: { children: React.ReactNode
             isActive: true,
           }));
         });
+        if (isCleanedUp) { unlistenResumed(); return; }
         unsubscribers.push(unlistenResumed);
 
         console.log('[RecordingStateContext] Event listeners set up successfully');
@@ -211,7 +213,10 @@ export function RecordingStateProvider({ children }: { children: React.ReactNode
 
     return () => {
       console.log('[RecordingStateContext] Cleaning up event listeners');
-      unsubscribers.forEach(unsub => unsub());
+      isCleanedUp = true;
+      unsubscribers.forEach(unsub => {
+        try { unsub(); } catch (_) {}
+      });
       stopPolling();
     };
   }, []);

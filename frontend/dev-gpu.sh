@@ -162,18 +162,69 @@ else
     exit 1
 fi
 
-# Run tauri dev using npm scripts
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 1: Start Next.js dev server in background (port 3118)
+# ─────────────────────────────────────────────────────────────────────────────
 echo ""
-echo -e "${CYAN}Starting complete Tauri application...${NC}"
+echo -e "${CYAN}🌐 Starting Next.js dev server on port 3118...${NC}"
+
+$PKG_MGR dev &
+NEXTJS_PID=$!
+
+# Make sure we kill Next.js when this script exits for any reason
+trap 'echo ""; echo -e "${YELLOW}🛑 Stopping Next.js (PID $NEXTJS_PID)...${NC}"; kill $NEXTJS_PID 2>/dev/null; wait $NEXTJS_PID 2>/dev/null' EXIT INT TERM
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 2: Wait until Next.js is ready (HTTP 200 on /)
+# ─────────────────────────────────────────────────────────────────────────────
+echo -e "${BLUE}⏳ Waiting for Next.js to be ready...${NC}"
+
+MAX_WAIT=300  # 5 minutes max
+ELAPSED=0
+INTERVAL=3
+
+while [ $ELAPSED -lt $MAX_WAIT ]; do
+    # Check if background process is still alive
+    if ! kill -0 $NEXTJS_PID 2>/dev/null; then
+        echo -e "${RED}❌ Next.js process died unexpectedly${NC}"
+        exit 1
+    fi
+
+    # Try to get HTTP 200 from the dev server
+    HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 2 http://localhost:3118/ 2>/dev/null || true)
+    if [ "$HTTP_STATUS" = "200" ]; then
+        echo -e "${GREEN}✅ Next.js is ready! (took ${ELAPSED}s)${NC}"
+        break
+    fi
+
+    sleep $INTERVAL
+    ELAPSED=$((ELAPSED + INTERVAL))
+    echo -e "   Still compiling... (${ELAPSED}s elapsed, HTTP status: ${HTTP_STATUS:-none})"
+done
+
+if [ $ELAPSED -ge $MAX_WAIT ]; then
+    echo -e "${RED}❌ Next.js did not become ready within ${MAX_WAIT}s${NC}"
+    exit 1
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 3: Launch Tauri backend only (Next.js is already running)
+# ─────────────────────────────────────────────────────────────────────────────
+echo ""
+echo -e "${CYAN}🚀 Launching Tauri (Next.js already running on :3118)...${NC}"
 echo ""
 
-$PKG_MGR run tauri:dev
+# tauri:dev-only patches tauri.conf.json to clear beforeDevCommand so Tauri
+# won't try to spin up a second Next.js instance.
+$PKG_MGR run tauri:dev-only
 
-if [ $? -eq 0 ]; then
+EXIT_CODE=$?
+
+if [ $EXIT_CODE -eq 0 ]; then
     echo ""
     echo -e "${GREEN}✅ Development server stopped cleanly${NC}"
 else
     echo ""
-    echo -e "${RED}❌ Development server encountered an error${NC}"
-    exit 1
+    echo -e "${RED}❌ Development server encountered an error (exit $EXIT_CODE)${NC}"
+    exit $EXIT_CODE
 fi

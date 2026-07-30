@@ -100,8 +100,8 @@ export default function RootLayout({
     }
   }, []);
   useEffect(() => {
-    // Listen for tray recording toggle request
-    const unlisten = listen('request-recording-toggle', () => {
+    let unlistenFn: (() => void) | null = null;
+    listen('request-recording-toggle', () => {
       console.log('[Layout] Received request-recording-toggle from tray');
 
       if (showOnboarding) {
@@ -109,14 +109,15 @@ export default function RootLayout({
           description: "You need to finish onboarding before you can start recording."
         });
       } else {
-        // If in main app, forward to useRecordingStart via window event
         console.log('[Layout] Forwarding to start-recording-from-sidebar');
         window.dispatchEvent(new CustomEvent('start-recording-from-sidebar'));
       }
-    });
+    }).then(fn => { unlistenFn = fn; });
 
     return () => {
-      unlisten.then(fn => fn());
+      if (unlistenFn) {
+        try { unlistenFn(); } catch (_) {}
+      }
     };
   }, [showOnboarding]);
 

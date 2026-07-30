@@ -27,6 +27,7 @@ import { VisuallyHidden } from "@/components/ui/visually-hidden"
 
 import { MessageToast } from '../MessageToast';
 import Info from '../Info';
+import { NotesManager } from '../NotesManager';
 import { ComplianceNotification } from '../ComplianceNotification';
 import { Input } from '../ui/input';
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '../ui/input-group';
@@ -488,21 +489,19 @@ const Sidebar: React.FC = () => {
             </TooltipContent>
           </Tooltip>
 
-          {betaFeatures.importAndRetranscribe && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={() => openImportDialog()}
-                  className="p-2 rounded-lg transition-colors duration-150 hover:bg-blue-100 bg-blue-50"
-                >
-                  <Upload className="w-5 h-5 text-blue-600" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right">
-                <p>Import Audio</p>
-              </TooltipContent>
-            </Tooltip>
-          )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => openImportDialog()}
+                className="p-2 rounded-lg transition-colors duration-150 hover:bg-blue-100 bg-blue-50"
+              >
+                <Upload className="w-5 h-5 text-blue-600" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              <p>Import Audio</p>
+            </TooltipContent>
+          </Tooltip>
 
           <Tooltip>
             <TooltipTrigger asChild>
@@ -752,16 +751,25 @@ const Sidebar: React.FC = () => {
               </div>
             )}
 
-            {/* Scrollable meeting items */}
+            {/* Scrollable meeting & free note items */}
             {!isCollapsed && (
-              <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
-                {filteredSidebarItems
-                  .filter(item => item.type === 'folder' && expandedFolders.has(item.id) && item.children)
-                  .map(item => (
-                    <div key={`${item.id}-children`} className="mx-3">
-                      {item.children!.map(child => renderItem(child, 1))}
-                    </div>
-                  ))}
+              <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0 space-y-4">
+                <div className="px-3 pt-2">
+                  <NotesManager />
+                </div>
+
+                <div>
+                  <div className="px-5 py-1 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    Gravadas
+                  </div>
+                  {filteredSidebarItems
+                    .filter(item => item.type === 'folder' && expandedFolders.has(item.id) && item.children)
+                    .map(item => (
+                      <div key={`${item.id}-children`} className="mx-3">
+                        {item.children!.map(child => renderItem(child, 1))}
+                      </div>
+                    ))}
+                </div>
               </div>
             )}
           </div>
@@ -789,15 +797,13 @@ const Sidebar: React.FC = () => {
               )}
             </button>
 
-            {betaFeatures.importAndRetranscribe && (
-              <button
-                onClick={() => openImportDialog()}
-                className="w-full flex items-center justify-center px-3 py-2 mt-1.5 text-sm font-medium text-white bg-gradient-to-b from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-lg transition-all shadow-sm border border-blue-700/10"
-              >
-                <Upload className="w-4 h-4 mr-2" strokeWidth={1.5} />
-                <span>Import Audio</span>
-              </button>
-            )}
+            <button
+              onClick={() => openImportDialog()}
+              className="w-full flex items-center justify-center px-3 py-2 mt-1.5 text-sm font-medium text-white bg-gradient-to-b from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-lg transition-all shadow-sm border border-blue-700/10"
+            >
+              <Upload className="w-4 h-4 mr-2" strokeWidth={1.5} />
+              <span>Import Audio</span>
+            </button>
 
             <button
               onClick={() => router.push('/settings')}

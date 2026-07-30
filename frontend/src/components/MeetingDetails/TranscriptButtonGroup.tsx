@@ -68,7 +68,7 @@ export function TranscriptButtonGroup({
           <span className="hidden lg:inline">Recording</span>
         </Button>
 
-        {betaFeatures.importAndRetranscribe && meetingId && meetingFolderPath && (
+        {meetingId && meetingFolderPath && (
           <Button
             size="sm"
             variant="outline"
@@ -85,7 +85,7 @@ export function TranscriptButtonGroup({
         )}
       </ButtonGroup>
 
-      {betaFeatures.importAndRetranscribe && meetingId && meetingFolderPath && (
+      {meetingId && meetingFolderPath && (
         <RetranscribeDialog
           open={showRetranscribeDialog}
           onOpenChange={setShowRetranscribeDialog}

@@ -126,6 +126,10 @@ impl AnalyticsClient {
     }
 
     pub async fn track_event(&self, event_name: &str, properties: Option<HashMap<String, String>>) -> Result<(), String> {
+        if !self.config.enabled {
+            return Ok(());
+        }
+
         let client = match &self.client {
             Some(client) => Arc::clone(client),
             None => return Ok(()),

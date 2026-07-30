@@ -75,17 +75,9 @@ export class Analytics {
     }
   }
 
-  static async track(eventName: string, properties?: AnalyticsProperties): Promise<void> {
-    if (!this.initialized) {
-      console.warn('Analytics not initialized');
-      return;
-    }
-
-    try {
-      await invoke('track_event', { eventName, properties });
-    } catch (error) {
-      console.error(`Failed to track event ${eventName}:`, error);
-    }
+  static async track(_eventName: string, _properties?: AnalyticsProperties): Promise<void> {
+    // Telemetry completely disabled for absolute privacy
+    return;
   }
 
   static async identify(userId: string, properties?: AnalyticsProperties): Promise<void> {

@@ -596,6 +596,7 @@ pub fn run() {
             whisper_engine::parallel_commands::test_parallel_processing_setup,
             get_audio_devices,
             trigger_microphone_permission,
+            audio::hardware_detector::get_hardware_recommendations,
             start_recording_with_devices,
             start_recording_with_devices_and_meeting,
             start_audio_level_monitoring,

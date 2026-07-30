@@ -2,18 +2,11 @@ import React, { useState, useEffect } from "react";
 import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
 import Image from 'next/image';
-import AnalyticsConsentSwitch from "./AnalyticsConsentSwitch";
 import { UpdateDialog } from "./UpdateDialog";
-import { updateService, UpdateInfo } from '@/services/updateService';
-import { Button } from './ui/button';
-import { Loader2, CheckCircle2 } from 'lucide-react';
-import { toast } from 'sonner';
 
 
 export function About() {
     const [currentVersion, setCurrentVersion] = useState<string>('0.4.0');
-    const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
-    const [isChecking, setIsChecking] = useState(false);
     const [showUpdateDialog, setShowUpdateDialog] = useState(false);
 
     useEffect(() => {
@@ -26,24 +19,6 @@ export function About() {
             await invoke('open_external_url', { url: 'https://meetily.zackriya.com/#about' });
         } catch (error) {
             console.error('Failed to open link:', error);
-        }
-    };
-
-    const handleCheckForUpdates = async () => {
-        setIsChecking(true);
-        try {
-            const info = await updateService.checkForUpdates(true);
-            setUpdateInfo(info);
-            if (info.available) {
-                setShowUpdateDialog(true);
-            } else {
-                toast.success('You are running the latest version');
-            }
-        } catch (error: any) {
-            console.error('Failed to check for updates:', error);
-            toast.error('Failed to check for updates: ' + (error.message || 'Unknown error'));
-        } finally {
-            setIsChecking(false);
         }
     };
 
@@ -65,37 +40,18 @@ export function About() {
                 <p className="text-medium text-gray-600 mt-1">
                     Real-time notes and summaries that never leave your machine.
                 </p>
-                <div className="mt-3">
-                    <Button
-                        onClick={handleCheckForUpdates}
-                        disabled={isChecking}
-                        variant="outline"
-                        size="sm"
-                        className="text-xs"
-                    >
-                        {isChecking ? (
-                            <>
-                                <Loader2 className="h-3 w-3 mr-2 animate-spin" />
-                                Checking...
-                            </>
-                        ) : (
-                            <>
-                                <CheckCircle2 className="h-3 w-3 mr-2" />
-                                Check for Updates
-                            </>
-                        )}
-                    </Button>
-                    {updateInfo?.available && (
-                        <div className="mt-2 text-xs text-blue-600">
-                            Update available: v{updateInfo.version}
-                        </div>
-                    )}
+                
+                {/* Privacy-First Banner */}
+                <div className="mt-4 max-w-md mx-auto bg-emerald-50/80 border border-emerald-200/80 rounded-xl p-3.5 shadow-sm text-center">
+                    <p className="text-xs text-emerald-950 leading-relaxed font-medium">
+                        🛡️ Esta aplicação não é apenas <span className="font-bold text-emerald-900">AI First</span>, é <span className="font-bold text-emerald-900">Privacy First</span>. Nada sai do seu computador. Todos os seus dados pertencem a você.
+                    </p>
                 </div>
             </div>
 
             {/* Features Grid - Compact */}
             <div className="space-y-3">
-                <h2 className="text-base font-semibold text-gray-800">What makes MyMeet different</h2>
+                <h2 className="text-base font-semibold text-gray-800">What makes Empathy.AI different</h2>
                 <div className="grid grid-cols-2 gap-2">
                     <div className="bg-gray-50 rounded p-3 hover:bg-gray-100 transition-colors">
                         <h3 className="font-bold text-sm text-gray-900 mb-1">Privacy-first</h3>
@@ -143,13 +99,11 @@ export function About() {
                     Built by Zackriya Solutions
                 </p>
             </div>
-            <AnalyticsConsentSwitch />
 
-            {/* Update Dialog */}
             <UpdateDialog
                 open={showUpdateDialog}
                 onOpenChange={setShowUpdateDialog}
-                updateInfo={updateInfo}
+                updateInfo={null}
             />
         </div>
 
