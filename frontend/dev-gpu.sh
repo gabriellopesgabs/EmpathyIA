@@ -166,9 +166,8 @@ fi
 # Step 1: Start Next.js dev server in background (port 3118)
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
-echo -e "${CYAN}🌐 Starting Next.js dev server on port 3118...${NC}"
-
-$PKG_MGR dev &
+export PATH="/Users/gabriel/.nvm/versions/node/v20.19.6/bin:$PATH"
+npx next dev -p 3118 &
 NEXTJS_PID=$!
 
 # Make sure we kill Next.js when this script exits for any reason
@@ -184,13 +183,7 @@ ELAPSED=0
 INTERVAL=3
 
 while [ $ELAPSED -lt $MAX_WAIT ]; do
-    # Check if background process is still alive
-    if ! kill -0 $NEXTJS_PID 2>/dev/null; then
-        echo -e "${RED}❌ Next.js process died unexpectedly${NC}"
-        exit 1
-    fi
-
-    # Try to get HTTP 200 from the dev server
+    # Check if Next.js port is listening or compiling
     HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 2 http://localhost:3118/ 2>/dev/null || true)
     if [ "$HTTP_STATUS" = "200" ]; then
         echo -e "${GREEN}✅ Next.js is ready! (took ${ELAPSED}s)${NC}"

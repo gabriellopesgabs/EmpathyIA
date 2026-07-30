@@ -77,7 +77,7 @@ if (command === 'dev-only') {
   console.log('');
 
   // Map 'dev-only' → 'dev' for the actual tauri CLI call
-  let tauriCmd = 'tauri dev';
+  let tauriCmd = 'pnpm exec tauri dev';
   if (feature && feature !== 'none') tauriCmd += ` -- --features ${feature}`;
 
   try {
@@ -92,12 +92,12 @@ if (command === 'dev-only') {
 }
 
 // ── dev / build ──────────────────────────────────────────────────────────────
-let tauriCmd = `tauri ${command}`;
+let tauriCmd = `npx @tauri-apps/cli ${command}`;
 if (feature && feature !== 'none') {
-  tauriCmd += ` -- --features ${feature}`;
-  console.log(`🚀 Running: tauri ${command} with features: ${feature}`);
+  tauriCmd += ` --features ${feature}`;
+  console.log(`🚀 Running: npx @tauri-apps/cli ${command} with features: ${feature}`);
 } else {
-  console.log(`🚀 Running: tauri ${command} (CPU-only mode)`);
+  console.log(`🚀 Running: npx @tauri-apps/cli ${command} (CPU-only mode)`);
 }
 console.log('');
 
