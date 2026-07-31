@@ -59,7 +59,7 @@ export function NotesManager() {
     setNotes(updated);
     saveNotesToStorage(updated);
     toast.success('Nota criada com sucesso!');
-    router.push(`/notes/${newId}`);
+    router.push(`/notes?id=${newId}`);
   };
 
   const handleDeleteNote = (e: React.MouseEvent, id: string) => {
@@ -95,7 +95,7 @@ export function NotesManager() {
           notes.map((note) => (
             <div
               key={note.id}
-              onClick={() => router.push(`/notes/${note.id}`)}
+              onClick={() => router.push(`/notes?id=${note.id}`)}
               className="group flex items-center justify-between px-3 py-2 text-xs rounded-lg text-gray-700 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer transition-all"
             >
               <div className="flex items-center gap-2 truncate">

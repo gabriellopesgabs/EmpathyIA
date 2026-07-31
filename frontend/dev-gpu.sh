@@ -183,16 +183,13 @@ ELAPSED=0
 INTERVAL=3
 
 while [ $ELAPSED -lt $MAX_WAIT ]; do
-    # Check if Next.js port is listening or compiling
-    HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 2 http://localhost:3118/ 2>/dev/null || true)
-    if [ "$HTTP_STATUS" = "200" ]; then
-        echo -e "${GREEN}✅ Next.js is ready! (took ${ELAPSED}s)${NC}"
+    if nc -z localhost 3118 2>/dev/null || lsof -ti :3118 >/dev/null 2>&1; then
+        echo -e "${GREEN}✅ Next.js dev server listening on port 3118! (${ELAPSED}s)${NC}"
         break
     fi
 
-    sleep $INTERVAL
-    ELAPSED=$((ELAPSED + INTERVAL))
-    echo -e "   Still compiling... (${ELAPSED}s elapsed, HTTP status: ${HTTP_STATUS:-none})"
+    sleep 1
+    ELAPSED=$((ELAPSED + 1))
 done
 
 if [ $ELAPSED -ge $MAX_WAIT ]; then

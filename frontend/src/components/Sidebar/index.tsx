@@ -576,7 +576,8 @@ const Sidebar: React.FC = () => {
             } else {
               setCurrentMeeting({ id: item.id, title: item.title });
               const basePath = item.id.startsWith('intro-call') ? '/' :
-                item.id.includes('-') ? `/meeting-details?id=${item.id}` : `/notes/${item.id}`;
+                item.id.startsWith('note-') ? `/notes?id=${item.id}` :
+                item.id.includes('-') ? `/meeting-details?id=${item.id}` : `/notes?id=${item.id}`;
               router.push(basePath);
             }
           }}

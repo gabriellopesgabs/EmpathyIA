@@ -64,7 +64,7 @@ if (command === 'dev-only') {
     try {
       conf.build.beforeDevCommand = originalCmd;
       fs.writeFileSync(confPath, JSON.stringify(conf, null, 4));
-    } catch (_) {}
+    } catch (_) { }
   };
   process.on('exit', restore);
   process.on('SIGINT', () => { restore(); process.exit(0); });

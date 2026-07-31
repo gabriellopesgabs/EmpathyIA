@@ -52,8 +52,21 @@ export function NoteEditorClient({ id }: NoteEditorClientProps) {
   const [content, setContent] = useState('');
 
   useEffect(() => {
+    if (!id) return;
     const stored = getStoredNotes();
-    const found = stored.find((n) => n.id === id) || sampleData[id];
+    let found = stored.find((n) => n.id === id) || sampleData[id];
+
+    if (!found && id.startsWith('note-')) {
+      found = {
+        id,
+        title: 'Nova Nota sem Título',
+        createdAt: new Date().toLocaleDateString('pt-BR'),
+        updatedAt: new Date().toISOString(),
+        tags: ['Notas Livres'],
+        content: '# Nova Nota\n\nComece a digitar suas ideias...',
+      };
+    }
+
     if (found) {
       setNote(found);
       setTitle(found.title);
