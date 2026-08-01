@@ -76,9 +76,8 @@ if (command === 'dev-only') {
   }
   console.log('');
 
-  // Map 'dev-only' → 'dev' for the actual tauri CLI call
-  let tauriCmd = 'pnpm exec tauri dev';
-  if (feature && feature !== 'none') tauriCmd += ` -- --features ${feature}`;
+  let tauriCmd = 'cargo run --manifest-path src-tauri/Cargo.toml';
+  if (feature && feature !== 'none') tauriCmd += ` --features ${feature}`;
 
   try {
     execSync(tauriCmd, { stdio: 'inherit', env });
