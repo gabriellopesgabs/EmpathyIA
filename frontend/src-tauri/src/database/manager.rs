@@ -34,6 +34,29 @@ impl DatabaseManager {
 
         sqlx::migrate!("./migrations").run(&pool).await?;
 
+        if let Err(error) =
+            crate::database::repositories::setting::SettingsRepository::migrate_legacy_secrets(
+                &pool,
+            )
+            .await
+        {
+            log::warn!(
+                "Could not migrate legacy API keys to the operating system credential store: {}",
+                error
+            );
+        }
+
+        match crate::meeting_files::backfill_missing_markdown(&pool).await {
+            Ok(count) if count > 0 => {
+                log::info!("Verified Markdown documents for {} indexed meetings", count)
+            }
+            Ok(_) => {}
+            Err(error) => log::warn!(
+                "Could not backfill legacy meetings to Markdown; the SQLite index was preserved: {}",
+                error
+            ),
+        }
+
         Ok(DatabaseManager { pool })
     }
 
@@ -104,7 +127,10 @@ impl DatabaseManager {
                             Ok(db_manager)
                         }
                         Err(retry_err) => {
-                            log::error!("Database connection failed even after WAL cleanup: {}", retry_err);
+                            log::error!(
+                                "Database connection failed even after WAL cleanup: {}",
+                                retry_err
+                            );
                             Err(retry_err)
                         }
                     }

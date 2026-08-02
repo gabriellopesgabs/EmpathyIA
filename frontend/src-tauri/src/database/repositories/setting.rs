@@ -2,6 +2,41 @@ use crate::database::models::{Setting, TranscriptSetting};
 use crate::summary::CustomOpenAIConfig;
 use sqlx::SqlitePool;
 
+const KEYRING_SERVICE: &str = "ai.empathy.app";
+
+fn keyring_account(kind: &str, provider: &str) -> String {
+    format!("{}:{}", kind, provider.trim().to_ascii_lowercase())
+}
+
+fn keyring_error(error: keyring::Error) -> sqlx::Error {
+    sqlx::Error::Protocol(format!("Secure credential store error: {}", error))
+}
+
+fn save_secure_secret(kind: &str, provider: &str, secret: &str) -> Result<(), sqlx::Error> {
+    let entry = keyring::Entry::new(KEYRING_SERVICE, &keyring_account(kind, provider))
+        .map_err(keyring_error)?;
+    entry.set_password(secret).map_err(keyring_error)
+}
+
+fn get_secure_secret(kind: &str, provider: &str) -> Result<Option<String>, sqlx::Error> {
+    let entry = keyring::Entry::new(KEYRING_SERVICE, &keyring_account(kind, provider))
+        .map_err(keyring_error)?;
+    match entry.get_password() {
+        Ok(secret) => Ok(Some(secret)),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(error) => Err(keyring_error(error)),
+    }
+}
+
+fn delete_secure_secret(kind: &str, provider: &str) -> Result<(), sqlx::Error> {
+    let entry = keyring::Entry::new(KEYRING_SERVICE, &keyring_account(kind, provider))
+        .map_err(keyring_error)?;
+    match entry.delete_credential() {
+        Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+        Err(error) => Err(keyring_error(error)),
+    }
+}
+
 #[derive(serde::Deserialize, Debug)]
 pub struct SaveModelConfigRequest {
     pub provider: String,
@@ -29,12 +64,33 @@ pub struct SettingsRepository;
 // NOTE: Handle data exclusion in the higher layer as this is database abstraction layer(using SELECT *)
 
 impl SettingsRepository {
+    pub async fn migrate_legacy_secrets(pool: &SqlitePool) -> Result<(), sqlx::Error> {
+        for provider in ["openai", "claude", "ollama", "groq", "openrouter"] {
+            let _ = Self::get_api_key(pool, provider).await?;
+        }
+        for provider in ["localWhisper", "deepgram", "elevenLabs", "groq", "openai"] {
+            let _ = Self::get_transcript_api_key(pool, provider).await?;
+        }
+        let _ = Self::get_custom_openai_config(pool).await?;
+        Ok(())
+    }
+
     pub async fn get_model_config(
         pool: &SqlitePool,
     ) -> std::result::Result<Option<Setting>, sqlx::Error> {
-        let setting = sqlx::query_as::<_, Setting>("SELECT * FROM settings LIMIT 1")
-            .fetch_optional(pool)
-            .await?;
+        let setting = sqlx::query_as::<_, Setting>(
+            r#"SELECT id, provider, model, whisperModel,
+                       NULL AS groqApiKey,
+                       NULL AS openaiApiKey,
+                       NULL AS anthropicApiKey,
+                       NULL AS ollamaApiKey,
+                       NULL AS openRouterApiKey,
+                       ollamaEndpoint,
+                       customOpenAIConfig
+                FROM settings LIMIT 1"#,
+        )
+        .fetch_optional(pool)
+        .await?;
         Ok(setting)
     }
 
@@ -93,16 +149,14 @@ impl SettingsRepository {
             }
         };
 
+        save_secure_secret("summary", provider, api_key)?;
+
+        // Keep legacy columns empty. Existing values are migrated on first read.
         let query = format!(
-            r#"
-            INSERT INTO settings (id, provider, model, whisperModel, "{}")
-            VALUES ('1', 'openai', 'gpt-4o-2024-11-20', 'large-v3', $1)
-            ON CONFLICT(id) DO UPDATE SET
-                "{}" = $1
-            "#,
-            api_key_column, api_key_column
+            "UPDATE settings SET {} = NULL WHERE id = '1'",
+            api_key_column
         );
-        sqlx::query(&query).bind(api_key).execute(pool).await?;
+        sqlx::query(&query).execute(pool).await?;
 
         Ok(())
     }
@@ -131,23 +185,41 @@ impl SettingsRepository {
             }
         };
 
+        if let Some(secret) = get_secure_secret("summary", provider)? {
+            return Ok(Some(secret));
+        }
+
         let query = format!(
             "SELECT {} FROM settings WHERE id = '1' LIMIT 1",
             api_key_column
         );
-        let api_key = sqlx::query_scalar(&query).fetch_optional(pool).await?;
-        Ok(api_key)
+        let legacy_key: Option<String> = sqlx::query_scalar(&query).fetch_optional(pool).await?;
+        if let Some(ref secret) = legacy_key {
+            save_secure_secret("summary", provider, secret)?;
+            let clear_query = format!(
+                "UPDATE settings SET {} = NULL WHERE id = '1'",
+                api_key_column
+            );
+            sqlx::query(&clear_query).execute(pool).await?;
+        }
+        Ok(legacy_key)
     }
 
     pub async fn get_transcript_config(
         pool: &SqlitePool,
     ) -> std::result::Result<Option<TranscriptSetting>, sqlx::Error> {
-        let setting =
-            sqlx::query_as::<_, TranscriptSetting>("SELECT * FROM transcript_settings LIMIT 1")
-                .fetch_optional(pool)
-                .await?;
+        let setting = sqlx::query_as::<_, TranscriptSetting>(
+            r#"SELECT id, provider, model,
+                       NULL AS whisperApiKey,
+                       NULL AS deepgramApiKey,
+                       NULL AS elevenLabsApiKey,
+                       NULL AS groqApiKey,
+                       NULL AS openaiApiKey
+                FROM transcript_settings LIMIT 1"#,
+        )
+        .fetch_optional(pool)
+        .await?;
         Ok(setting)
-
     }
 
     pub async fn save_transcript_config(
@@ -191,16 +263,12 @@ impl SettingsRepository {
             }
         };
 
+        save_secure_secret("transcript", provider, api_key)?;
         let query = format!(
-            r#"
-            INSERT INTO transcript_settings (id, provider, model, "{}")
-            VALUES ('1', 'parakeet', '{}', $1)
-            ON CONFLICT(id) DO UPDATE SET
-                "{}" = $1
-            "#,
-            api_key_column, crate::config::DEFAULT_PARAKEET_MODEL, api_key_column
+            "UPDATE transcript_settings SET {} = NULL WHERE id = '1'",
+            api_key_column
         );
-        sqlx::query(&query).bind(api_key).execute(pool).await?;
+        sqlx::query(&query).execute(pool).await?;
 
         Ok(())
     }
@@ -223,12 +291,24 @@ impl SettingsRepository {
             }
         };
 
+        if let Some(secret) = get_secure_secret("transcript", provider)? {
+            return Ok(Some(secret));
+        }
+
         let query = format!(
             "SELECT {} FROM transcript_settings WHERE id = '1' LIMIT 1",
             api_key_column
         );
-        let api_key = sqlx::query_scalar(&query).fetch_optional(pool).await?;
-        Ok(api_key)
+        let legacy_key: Option<String> = sqlx::query_scalar(&query).fetch_optional(pool).await?;
+        if let Some(ref secret) = legacy_key {
+            save_secure_secret("transcript", provider, secret)?;
+            let clear_query = format!(
+                "UPDATE transcript_settings SET {} = NULL WHERE id = '1'",
+                api_key_column
+            );
+            sqlx::query(&clear_query).execute(pool).await?;
+        }
+        Ok(legacy_key)
     }
 
     pub async fn delete_api_key(
@@ -237,6 +317,7 @@ impl SettingsRepository {
     ) -> std::result::Result<(), sqlx::Error> {
         // Custom OpenAI uses JSON config - clear the entire config
         if provider == "custom-openai" {
+            delete_secure_secret("summary", provider)?;
             sqlx::query("UPDATE settings SET customOpenAIConfig = NULL WHERE id = '1'")
                 .execute(pool)
                 .await?;
@@ -261,6 +342,7 @@ impl SettingsRepository {
             "UPDATE settings SET {} = NULL WHERE id = '1'",
             api_key_column
         );
+        delete_secure_secret("summary", provider)?;
         sqlx::query(&query).execute(pool).await?;
 
         Ok(())
@@ -285,7 +367,7 @@ impl SettingsRepository {
             FROM settings
             WHERE id = '1'
             LIMIT 1
-            "#
+            "#,
         )
         .fetch_optional(pool)
         .await?;
@@ -296,11 +378,33 @@ impl SettingsRepository {
 
                 if let Some(json) = config_json {
                     // Parse JSON into CustomOpenAIConfig
-                    let config: CustomOpenAIConfig = serde_json::from_str(&json)
-                        .map_err(|e| sqlx::Error::Protocol(
-                            format!("Invalid JSON in customOpenAIConfig: {}", e).into()
-                        ))?;
+                    let config: CustomOpenAIConfig = serde_json::from_str(&json).map_err(|e| {
+                        sqlx::Error::Protocol(
+                            format!("Invalid JSON in customOpenAIConfig: {}", e).into(),
+                        )
+                    })?;
 
+                    let mut config = config;
+                    let secure_secret = get_secure_secret("summary", "custom-openai")?;
+                    if secure_secret.is_none() {
+                        if let Some(legacy_secret) = config.api_key.as_deref() {
+                            save_secure_secret("summary", "custom-openai", legacy_secret)?;
+                            let mut public_config = config.clone();
+                            public_config.api_key = None;
+                            sqlx::query(
+                                "UPDATE settings SET customOpenAIConfig = ? WHERE id = '1'",
+                            )
+                            .bind(serde_json::to_string(&public_config).map_err(|e| {
+                                sqlx::Error::Protocol(format!(
+                                    "Failed to sanitize custom OpenAI config: {}",
+                                    e
+                                ))
+                            })?)
+                            .execute(pool)
+                            .await?;
+                        }
+                    }
+                    config.api_key = secure_secret.or(config.api_key);
                     Ok(Some(config))
                 } else {
                     Ok(None)
@@ -323,11 +427,22 @@ impl SettingsRepository {
         pool: &SqlitePool,
         config: &CustomOpenAIConfig,
     ) -> std::result::Result<(), sqlx::Error> {
-        // Serialize config to JSON
-        let config_json = serde_json::to_string(config)
-            .map_err(|e| sqlx::Error::Protocol(
-                format!("Failed to serialize config to JSON: {}", e).into()
-            ))?;
+        if let Some(secret) = config
+            .api_key
+            .as_deref()
+            .filter(|secret| !secret.trim().is_empty())
+        {
+            save_secure_secret("summary", "custom-openai", secret)?;
+        } else {
+            delete_secure_secret("summary", "custom-openai")?;
+        }
+
+        // Persist non-secret configuration only.
+        let mut public_config = config.clone();
+        public_config.api_key = None;
+        let config_json = serde_json::to_string(&public_config).map_err(|e| {
+            sqlx::Error::Protocol(format!("Failed to serialize config to JSON: {}", e).into())
+        })?;
 
         // Upsert into settings table
         sqlx::query(

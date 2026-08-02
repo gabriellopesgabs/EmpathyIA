@@ -1,11 +1,11 @@
 # Legacy Backend Archive
 
 This directory contains the archived Python/FastAPI, Docker, and standalone
-whisper-server backend implementation from older Meetily releases.
+whisper-server backend implementation from older upstream releases.
 
 ## Current Supported Architecture
 
-Meetily no longer uses this backend as the supported application path. The
+EmpathyIA does not use this backend as the supported application path. The
 current app is a self-contained Tauri desktop application:
 
 - Next.js provides the desktop UI from `frontend/src`.
@@ -29,3 +29,6 @@ deployments, security assessments of the supported app, or contributor setup.
 The old FastAPI service, Docker compose flow, standalone whisper-server flow,
 and related scripts are unsupported. The old unauthenticated FastAPI/CORS
 behavior must not be treated as a supported production API.
+
+Executable PowerShell installers that downloaded and ran upstream binaries were removed. Historical
+source files in this directory are not part of the packaged desktop application.

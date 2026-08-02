@@ -1,8 +1,8 @@
+use anyhow::{anyhow, Result};
+use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
-use anyhow::{anyhow, Result};
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ObsidianExportData {
@@ -28,14 +28,14 @@ pub fn generate_obsidian_markdown(data: &ObsidianExportData) -> String {
     md.push_str("---\n");
     md.push_str(&format!("title: {:?}\n", data.title));
     md.push_str(&format!("date: {}\n", data.date));
-    
+
     if !data.speakers.is_empty() {
         md.push_str("speakers:\n");
         for speaker in &data.speakers {
             md.push_str(&format!("  - {:?}\n", speaker));
         }
     }
-    
+
     md.push_str("tags:\n");
     md.push_str("  - meeting\n");
     md.push_str("  - mymeet\n");
@@ -60,7 +60,10 @@ pub fn generate_obsidian_markdown(data: &ObsidianExportData) -> String {
     } else {
         for segment in &data.transcripts {
             let speaker_name = segment.speaker.as_deref().unwrap_or("Unknown Speaker");
-            md.push_str(&format!("**{}** [{}]  \n{}\n\n", speaker_name, segment.timestamp, segment.text));
+            md.push_str(&format!(
+                "**{}** [{}]  \n{}\n\n",
+                speaker_name, segment.timestamp, segment.text
+            ));
         }
     }
 
@@ -68,10 +71,17 @@ pub fn generate_obsidian_markdown(data: &ObsidianExportData) -> String {
 }
 
 /// Saves the generated Obsidian note to the target vault path
-pub fn save_to_obsidian_vault(vault_dir: &str, file_name: &str, markdown_content: &str) -> Result<()> {
+pub fn save_to_obsidian_vault(
+    vault_dir: &str,
+    file_name: &str,
+    markdown_content: &str,
+) -> Result<()> {
     let vault_path = Path::new(vault_dir);
     if !vault_path.exists() {
-        return Err(anyhow!("Target Obsidian vault directory does not exist: {}", vault_dir));
+        return Err(anyhow!(
+            "Target Obsidian vault directory does not exist: {}",
+            vault_dir
+        ));
     }
 
     // Clean filename
@@ -80,8 +90,11 @@ pub fn save_to_obsidian_vault(vault_dir: &str, file_name: &str, markdown_content
 
     let mut file = File::create(&dest_file_path)?;
     file.write_all(markdown_content.as_bytes())?;
-    
-    log::info!("Successfully exported meeting to Obsidian vault note: {:?}", dest_file_path);
+
+    log::info!(
+        "Successfully exported meeting to Obsidian vault note: {:?}",
+        dest_file_path
+    );
     Ok(())
 }
 
@@ -97,7 +110,10 @@ pub fn append_transcript_to_obsidian(
 ) -> Result<()> {
     let vault_path = Path::new(vault_dir);
     if !vault_path.exists() {
-        return Err(anyhow!("Target Obsidian vault directory does not exist: {}", vault_dir));
+        return Err(anyhow!(
+            "Target Obsidian vault directory does not exist: {}",
+            vault_dir
+        ));
     }
 
     let cleaned_filename = format!("{}.md", meeting_title.replace("/", "_").replace("\\", "_"));
@@ -136,4 +152,3 @@ pub fn append_transcript_to_obsidian(
 
     Ok(())
 }
-

@@ -9,9 +9,9 @@ module.exports = {
   theme: {
   	extend: {
   		fontFamily: {
-  			sans: [
-  				'var(--font-source-sans-3)'
-  			]
+				sans: [
+					'-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'
+				]
   		},
   		colors: {
   			background: 'hsl(var(--background))',

@@ -383,32 +383,16 @@ jobs:
           APPLE_CERTIFICATE: ${{ contains(matrix.platform, 'macos') && secrets.APPLE_CERTIFICATE || '' }}
           APPLE_CERTIFICATE_PASSWORD: ${{ contains(matrix.platform, 'macos') && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
           APPLE_SIGNING_IDENTITY: ${{ contains(matrix.platform, 'macos') && env.CERT_ID || '' }}
-          # Tauri updater signing (ALWAYS enabled for .sig files)
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # License validation RSA public key (embedded at build time)
-          MEETILY_RSA_PUBLIC_KEY: ${{ secrets.MEETILY_RSA_PUBLIC_KEY }}
-          # Supabase configuration (for online license verification)
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         with:
           projectPath: frontend
           args: ${{ matrix.args }} ${{ steps.build-features.outputs.features }}
 
-      # Build step (without code signing - updater signing only)
+      # Build step without platform code signing (development artifact only)
       - name: Build Tauri app (unsigned)
         if: github.event.inputs.sign-build != 'true'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Tauri updater signing (ALWAYS enabled for .sig files)
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # License validation RSA public key (embedded at build time)
-          MEETILY_RSA_PUBLIC_KEY: ${{ secrets.MEETILY_RSA_PUBLIC_KEY }}
-          # Supabase configuration (for online license verification)
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         with:
           projectPath: frontend
           args: ${{ matrix.args }} ${{ steps.build-features.outputs.features }}
@@ -472,7 +456,7 @@ jobs:
         if: github.event.inputs.upload-artifacts == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: meetily-devtest-${{ matrix.platform-name }}-${{ matrix.target }}-${{ steps.get-version.outputs.version }}
+          name: empathy-devtest-${{ matrix.platform-name }}-${{ matrix.target }}-${{ steps.get-version.outputs.version }}
           path: |
             target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
             target/aarch64-apple-darwin/release/bundle/macos/*.app

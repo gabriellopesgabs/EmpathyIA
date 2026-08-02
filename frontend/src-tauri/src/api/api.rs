@@ -758,16 +758,54 @@ pub async fn api_delete_meeting<R: Runtime>(
     );
 
     let pool = state.db_manager.pool();
+    let meeting = MeetingsRepository::get_meeting_metadata(pool, &meeting_id)
+        .await
+        .map_err(|error| format!("Failed to load meeting before deletion: {}", error))?;
+    let mut archived_folder: Option<(std::path::PathBuf, std::path::PathBuf)> = None;
+
+    if let Some(folder_path) = meeting
+        .as_ref()
+        .and_then(|meeting| meeting.folder_path.as_deref())
+        .filter(|path| !path.trim().is_empty())
+    {
+        let source = std::path::PathBuf::from(folder_path);
+        if source.exists() {
+            let parent = source
+                .parent()
+                .ok_or_else(|| "Meeting folder has no parent directory".to_string())?;
+            let trash = parent.join(".empathy-trash");
+            std::fs::create_dir_all(&trash)
+                .map_err(|error| format!("Failed to create recovery folder: {}", error))?;
+            let folder_name = source
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("meeting");
+            let destination = trash.join(format!("{}-{}", folder_name, uuid::Uuid::new_v4()));
+            std::fs::rename(&source, &destination)
+                .map_err(|error| format!("Failed to archive meeting folder safely: {}", error))?;
+            archived_folder = Some((source, destination));
+        }
+    }
 
     match MeetingsRepository::delete_meeting(pool, &meeting_id).await {
         Ok(true) => {
             log_info!("Successfully deleted meeting {}", meeting_id);
             Ok(serde_json::json!({
                 "status": "success",
-                "message": "Meeting deleted successfully"
+                "message": "Meeting removed from the index and archived for recovery",
+                "recoverable": archived_folder.is_some(),
+                "archived_path": archived_folder.as_ref().map(|(_, path)| path.to_string_lossy())
             }))
         }
         Ok(false) => {
+            if let Some((source, destination)) = archived_folder {
+                if let Err(restore_error) = std::fs::rename(&destination, &source) {
+                    log_error!(
+                        "Failed to restore meeting folder after index deletion was rejected: {}",
+                        restore_error
+                    );
+                }
+            }
             log_warn!("Meeting not found or already deleted: {}", meeting_id);
             Err(format!(
                 "Meeting not found or could not be deleted: {}",
@@ -775,6 +813,14 @@ pub async fn api_delete_meeting<R: Runtime>(
             ))
         }
         Err(e) => {
+            if let Some((source, destination)) = archived_folder {
+                if let Err(restore_error) = std::fs::rename(&destination, &source) {
+                    log_error!(
+                        "Failed to restore archived meeting folder after database error: {}",
+                        restore_error
+                    );
+                }
+            }
             log_error!("Error deleting meeting {}: {}", meeting_id, e);
             Err(format!("Failed to delete meeting: {}", e))
         }
@@ -819,7 +865,10 @@ pub async fn api_get_meeting_metadata<R: Runtime>(
     meeting_id: String,
     state: tauri::State<'_, AppState>,
 ) -> Result<MeetingMetadata, String> {
-    log_info!("api_get_meeting_metadata called for meeting_id: {}", meeting_id);
+    log_info!(
+        "api_get_meeting_metadata called for meeting_id: {}",
+        meeting_id
+    );
 
     let pool = state.db_manager.pool();
 
@@ -863,7 +912,9 @@ pub async fn api_get_meeting_transcripts<R: Runtime>(
 
     let pool = state.db_manager.pool();
 
-    match MeetingsRepository::get_meeting_transcripts_paginated(pool, &meeting_id, limit, offset).await {
+    match MeetingsRepository::get_meeting_transcripts_paginated(pool, &meeting_id, limit, offset)
+        .await
+    {
         Ok((transcripts, total_count)) => {
             log_info!(
                 "Successfully retrieved {} transcripts for meeting {} (total: {})",
@@ -895,7 +946,11 @@ pub async fn api_get_meeting_transcripts<R: Runtime>(
             })
         }
         Err(e) => {
-            log_error!("Error retrieving transcripts for meeting {}: {}", meeting_id, e);
+            log_error!(
+                "Error retrieving transcripts for meeting {}: {}",
+                meeting_id,
+                e
+            );
             Err(format!("Failed to retrieve transcripts: {}", e))
         }
     }
@@ -915,8 +970,38 @@ pub async fn api_save_meeting_title<R: Runtime>(
         auth_token.is_some()
     );
     let pool = state.db_manager.pool();
+    let existing = MeetingsRepository::get_meeting_metadata(pool, &meeting_id)
+        .await
+        .map_err(|e| format!("Failed to load meeting metadata: {}", e))?;
     match MeetingsRepository::update_meeting_title(pool, &meeting_id, &title).await {
         Ok(true) => {
+            if let Some(meeting) = existing {
+                if let Some(folder_path) = meeting
+                    .folder_path
+                    .as_deref()
+                    .filter(|path| !path.trim().is_empty())
+                {
+                    let updated_at = chrono::Utc::now().to_rfc3339();
+                    crate::meeting_files::write_meeting_index(
+                        std::path::Path::new(folder_path),
+                        &meeting_id,
+                        &title,
+                        &meeting.created_at.0.to_rfc3339(),
+                        &updated_at,
+                    )
+                    .and_then(|_| {
+                        crate::meeting_files::update_machine_metadata(
+                            std::path::Path::new(folder_path),
+                            &meeting_id,
+                            &title,
+                            crate::meeting_files::TRANSCRIPT_FILE,
+                        )
+                    })
+                    .map_err(|e| {
+                        format!("Title changed in the index but Markdown sync failed: {}", e)
+                    })?;
+                }
+            }
             log_info!("Successfully saved meeting title");
             Ok(serde_json::json!({"message": "Meeting title saved successfully"}))
         }
@@ -963,7 +1048,10 @@ pub async fn api_save_transcript<R: Runtime>(
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| {
             log_error!("Failed to parse transcript segments: {}", e);
-            format!("Invalid transcript data format: {}. Please check the data structure.", e)
+            format!(
+                "Invalid transcript data format: {}. Please check the data structure.",
+                e
+            )
         })?;
 
     // Log parsed segments count and first segment details
@@ -978,6 +1066,7 @@ pub async fn api_save_transcript<R: Runtime>(
     let pool = state.db_manager.pool();
 
     // Now, call the repository with the correctly typed data.
+    let canonical_folder = folder_path.clone();
     match TranscriptsRepository::save_transcript(
         pool,
         &meeting_title,
@@ -987,6 +1076,55 @@ pub async fn api_save_transcript<R: Runtime>(
     .await
     {
         Ok(meeting_id) => {
+            if let Some(folder_path) = canonical_folder.filter(|path| !path.trim().is_empty()) {
+                let folder = std::path::Path::new(&folder_path);
+                let now = chrono::Utc::now().to_rfc3339();
+                let markdown_segments = transcripts_to_save
+                    .iter()
+                    .map(|segment| crate::meeting_files::MarkdownTranscriptSegment {
+                        id: segment.id.clone(),
+                        text: segment.text.clone(),
+                        timestamp: segment.timestamp.clone(),
+                        audio_start_time: segment.audio_start_time,
+                        audio_end_time: segment.audio_end_time,
+                        duration: segment.duration,
+                        speaker: segment.speaker.clone(),
+                    })
+                    .collect::<Vec<_>>();
+
+                crate::meeting_files::write_meeting_index(
+                    folder,
+                    &meeting_id,
+                    &meeting_title,
+                    &now,
+                    &now,
+                )
+                .and_then(|_| {
+                    crate::meeting_files::write_transcript(
+                        folder,
+                        Some(&meeting_id),
+                        &meeting_title,
+                        &now,
+                        &markdown_segments,
+                    )
+                })
+                .and_then(|_| {
+                    crate::meeting_files::update_machine_metadata(
+                        folder,
+                        &meeting_id,
+                        &meeting_title,
+                        crate::meeting_files::TRANSCRIPT_FILE,
+                    )
+                })
+                .map_err(|error| {
+                    log_error!(
+                        "Meeting was indexed but canonical Markdown could not be written: {}",
+                        error
+                    );
+                    format!("Failed to save canonical Markdown: {}", error)
+                })?;
+            }
+
             log_info!(
                 "Successfully saved transcript and created meeting with id: {}",
                 meeting_id
@@ -1154,17 +1292,29 @@ pub async fn debug_backend_connection<R: Runtime>(app: AppHandle<R>) -> Result<S
 pub async fn open_external_url(url: String) -> Result<(), String> {
     use std::process::Command;
 
+    let parsed = url::Url::parse(&url).map_err(|_| "Invalid external URL".to_string())?;
+    if parsed.scheme() != "https" {
+        return Err("Only HTTPS links can be opened".to_string());
+    }
+    let host = parsed
+        .host_str()
+        .ok_or_else(|| "External URL has no host".to_string())?;
+    const ALLOWED_HOSTS: &[&str] = &["github.com", "ollama.com", "www.ollama.com"];
+    if !ALLOWED_HOSTS.contains(&host) {
+        return Err(format!("External host is not allowed: {}", host));
+    }
+
     let result = if cfg!(target_os = "windows") {
-        Command::new("cmd").args(&["/C", "start", &url]).output()
+        Command::new("explorer.exe").arg(&url).status()
     } else if cfg!(target_os = "macos") {
-        Command::new("open").arg(&url).output()
+        Command::new("open").arg(&url).status()
     } else {
-        // Linux and other Unix-like systems
-        Command::new("xdg-open").arg(&url).output()
+        Command::new("xdg-open").arg(&url).status()
     };
 
     match result {
-        Ok(_) => Ok(()),
+        Ok(status) if status.success() => Ok(()),
+        Ok(status) => Err(format!("External opener exited with status {}", status)),
         Err(e) => Err(format!("Failed to open URL: {}", e)),
     }
 }
@@ -1233,7 +1383,10 @@ pub async fn api_save_custom_openai_config<R: Runtime>(
 
     match SettingsRepository::save_custom_openai_config(pool, &config).await {
         Ok(()) => {
-            log_info!("✅ Successfully saved custom OpenAI config for endpoint: {}", config.endpoint);
+            log_info!(
+                "✅ Successfully saved custom OpenAI config for endpoint: {}",
+                config.endpoint
+            );
             Ok(serde_json::json!({
                 "status": "success",
                 "message": "Custom OpenAI configuration saved successfully"
@@ -1259,8 +1412,11 @@ pub async fn api_get_custom_openai_config<R: Runtime>(
     match SettingsRepository::get_custom_openai_config(pool).await {
         Ok(config) => {
             if let Some(ref c) = config {
-                log_info!("✅ Found custom OpenAI config: endpoint='{}', model='{}'",
-                    c.endpoint, c.model);
+                log_info!(
+                    "✅ Found custom OpenAI config: endpoint='{}', model='{}'",
+                    c.endpoint,
+                    c.model
+                );
             } else {
                 log_info!("No custom OpenAI config found");
             }
@@ -1343,7 +1499,7 @@ pub async fn api_test_custom_openai_connection<R: Runtime>(
                                             .get("message")
                                             .and_then(|m| {
                                                 m.get("content")
-                                                .or_else(|| m.get("reasoning_content"))
+                                                    .or_else(|| m.get("reasoning_content"))
                                             })
                                             .is_some();
 
@@ -1361,17 +1517,33 @@ pub async fn api_test_custom_openai_connection<R: Runtime>(
                         }
 
                         // Response was 200 but doesn't match OpenAI format
-                        log_warn!("⚠️ Endpoint returned 200 but response doesn't match OpenAI format: {}", response_text);
+                        log_warn!(
+                            "⚠️ Endpoint returned 200 but response doesn't match OpenAI format: {}",
+                            response_text
+                        );
                         Err("Endpoint is reachable but doesn't appear to be OpenAI-compatible. Response is missing 'choices' array or 'message.content' / 'message.reasoning_content' field.".to_string())
                     }
                     Err(e) => {
-                        log_warn!("⚠️ Endpoint returned 200 but response is not valid JSON: {}", e);
-                        Err(format!("Endpoint is reachable but returned invalid JSON: {}. Response: {}", e, response_text))
+                        log_warn!(
+                            "⚠️ Endpoint returned 200 but response is not valid JSON: {}",
+                            e
+                        );
+                        Err(format!(
+                            "Endpoint is reachable but returned invalid JSON: {}. Response: {}",
+                            e, response_text
+                        ))
                     }
                 }
             } else {
-                log_warn!("⚠️ Custom OpenAI connection test failed with status {}: {}", status, response_text);
-                Err(format!("Connection failed with status {}: {}", status, response_text))
+                log_warn!(
+                    "⚠️ Custom OpenAI connection test failed with status {}: {}",
+                    status,
+                    response_text
+                );
+                Err(format!(
+                    "Connection failed with status {}: {}",
+                    status, response_text
+                ))
             }
         }
         Err(e) => {
@@ -1394,28 +1566,39 @@ pub async fn api_export_to_obsidian<R: Runtime>(
     vault_path: String,
     state: tauri::State<'_, AppState>,
 ) -> Result<(), String> {
-    log_info!("api_export_to_obsidian called for meeting_id: {}, vault_path: {}", meeting_id, vault_path);
+    log_info!(
+        "api_export_to_obsidian called for meeting_id: {}, vault_path: {}",
+        meeting_id,
+        vault_path
+    );
     let pool = state.db_manager.pool();
-    
+
     // 1. Fetch meeting
     let meeting = MeetingsRepository::get_meeting(pool, &meeting_id)
         .await
         .map_err(|e| format!("Failed to find meeting: {}", e))?
         .ok_or_else(|| "Meeting not found".to_string())?;
-        
+
     // 2. Fetch transcripts
-    let (transcripts, _) = MeetingsRepository::get_meeting_transcripts_paginated(pool, &meeting_id, 1000000, 0)
-        .await
-        .map_err(|e| format!("Failed to fetch transcripts: {}", e))?;
-        
+    let (transcripts, _) =
+        MeetingsRepository::get_meeting_transcripts_paginated(pool, &meeting_id, 1000000, 0)
+            .await
+            .map_err(|e| format!("Failed to fetch transcripts: {}", e))?;
+
     // 3. Fetch summary
-    let summary_process = crate::database::repositories::summary::SummaryProcessesRepository::get_summary_data(pool, &meeting_id)
+    let summary_process =
+        crate::database::repositories::summary::SummaryProcessesRepository::get_summary_data(
+            pool,
+            &meeting_id,
+        )
         .await
         .map_err(|e| format!("Failed to fetch summary: {}", e))?;
-        
+
     let summary_markdown = summary_process.and_then(|p| p.result).and_then(|r| {
         let val: serde_json::Value = serde_json::from_str(&r).ok()?;
-        val.get("markdown").and_then(|m| m.as_str()).map(|s| s.to_string())
+        val.get("markdown")
+            .and_then(|m| m.as_str())
+            .map(|s| s.to_string())
     });
 
     // 4. Extract unique speakers
@@ -1427,7 +1610,7 @@ pub async fn api_export_to_obsidian<R: Runtime>(
             }
         }
     }
-    
+
     // 5. Build obsidian export data
     let export_transcripts = transcripts
         .into_iter()
@@ -1437,7 +1620,7 @@ pub async fn api_export_to_obsidian<R: Runtime>(
             timestamp: t.timestamp,
         })
         .collect::<Vec<_>>();
-        
+
     let export_data = crate::audio::obsidian::ObsidianExportData {
         title: meeting.title.clone(),
         date: meeting.created_at.clone(),
@@ -1445,24 +1628,23 @@ pub async fn api_export_to_obsidian<R: Runtime>(
         summary_markdown,
         transcripts: export_transcripts,
     };
-    
+
     // 6. Generate and save
     let md_content = crate::audio::obsidian::generate_obsidian_markdown(&export_data);
     crate::audio::obsidian::save_to_obsidian_vault(&vault_path, &meeting.title, &md_content)
         .map_err(|e| format!("Failed to export to Obsidian: {}", e))?;
-        
+
     Ok(())
 }
 
 #[tauri::command]
-pub async fn api_select_folder<R: Runtime>(
-    app: AppHandle<R>,
-) -> Result<Option<String>, String> {
+pub async fn api_select_folder<R: Runtime>(app: AppHandle<R>) -> Result<Option<String>, String> {
     use tauri_plugin_dialog::DialogExt;
     let (tx, rx) = tokio::sync::oneshot::channel();
     app.dialog().file().pick_folder(move |folder| {
         let path = folder.map(|f| f.to_string());
         let _ = tx.send(path);
     });
-    rx.await.map_err(|_| "Dialog cancelled or failed".to_string())
+    rx.await
+        .map_err(|_| "Dialog cancelled or failed".to_string())
 }

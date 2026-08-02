@@ -21,6 +21,7 @@ pub const AGENDA_TAKEAWAYS: &str = include_str!("../../../templates/agenda_takea
 /// Registry of all built-in templates
 ///
 /// Maps template identifiers to their embedded JSON content
+#[cfg(test)]
 pub fn get_builtin_templates() -> Vec<(&'static str, &'static str)> {
     vec![
         ("daily_standup", DAILY_STANDUP),

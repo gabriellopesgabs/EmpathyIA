@@ -2,13 +2,6 @@ import { useState, useEffect } from 'react';
 
 export type Platform = 'macos' | 'windows' | 'linux' | 'unknown';
 
-// Extend Window type to include Tauri internals
-declare global {
-  interface Window {
-    __TAURI_INTERNALS__?: unknown;
-  }
-}
-
 /**
  * Detect platform from user agent (fallback method)
  */
@@ -28,49 +21,14 @@ function detectPlatformFromUserAgent(): Platform {
 
 /**
  * Hook to detect the current platform
- * Uses Tauri's OS plugin if available, falls back to user agent detection
+ * Uses the WebView user agent, avoiding an unnecessary privileged OS plugin.
  * @returns The current platform
  */
 export function usePlatform(): Platform {
   const [currentPlatform, setCurrentPlatform] = useState<Platform>(() => detectPlatformFromUserAgent());
 
   useEffect(() => {
-    async function detectPlatform() {
-      // Check if Tauri is available
-      if (typeof window === 'undefined' || !window.__TAURI_INTERNALS__) {
-        // Not in Tauri environment, use user agent
-        setCurrentPlatform(detectPlatformFromUserAgent());
-        return;
-      }
-
-      try {
-        // Dynamically import to avoid SSR issues
-        const { platform } = await import('@tauri-apps/plugin-os');
-        const platformName = await platform();
-
-        // Map Tauri's platform names to our simplified types
-        switch (platformName) {
-          case 'macos':
-          case 'ios':
-            setCurrentPlatform('macos');
-            break;
-          case 'windows':
-            setCurrentPlatform('windows');
-            break;
-          case 'linux':
-          case 'android':
-            setCurrentPlatform('linux');
-            break;
-          default:
-            setCurrentPlatform('unknown');
-        }
-      } catch (error) {
-        console.warn('[usePlatform] Tauri platform detection failed, using user agent:', error);
-        setCurrentPlatform(detectPlatformFromUserAgent());
-      }
-    }
-
-    detectPlatform();
+    setCurrentPlatform(detectPlatformFromUserAgent());
   }, []);
 
   return currentPlatform;

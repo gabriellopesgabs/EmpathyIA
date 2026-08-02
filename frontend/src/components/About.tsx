@@ -2,12 +2,10 @@ import React, { useState, useEffect } from "react";
 import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
 import Image from 'next/image';
-import { UpdateDialog } from "./UpdateDialog";
 
 
 export function About() {
     const [currentVersion, setCurrentVersion] = useState<string>('0.4.0');
-    const [showUpdateDialog, setShowUpdateDialog] = useState(false);
 
     useEffect(() => {
         // Get current version on mount
@@ -16,7 +14,7 @@ export function About() {
 
     const handleContactClick = async () => {
         try {
-            await invoke('open_external_url', { url: 'https://meetily.zackriya.com/#about' });
+            await invoke('open_external_url', { url: 'https://github.com/gabriellopesgabs/EmpathyIA' });
         } catch (error) {
             console.error('Failed to open link:', error);
         }
@@ -38,13 +36,13 @@ export function About() {
                 {/* <h1 className="text-xl font-bold text-gray-900">MyMeet</h1> */}
                 <span className="text-sm text-gray-500"> v{currentVersion}</span>
                 <p className="text-medium text-gray-600 mt-1">
-                    Real-time notes and summaries that never leave your machine.
+                    Transcrição local e resumos sob o seu controle.
                 </p>
                 
                 {/* Privacy-First Banner */}
                 <div className="mt-4 max-w-md mx-auto bg-emerald-50/80 border border-emerald-200/80 rounded-xl p-3.5 shadow-sm text-center">
                     <p className="text-xs text-emerald-950 leading-relaxed font-medium">
-                        🛡️ Esta aplicação não é apenas <span className="font-bold text-emerald-900">AI First</span>, é <span className="font-bold text-emerald-900">Privacy First</span>. Nada sai do seu computador. Todos os seus dados pertencem a você.
+                        🛡️ Gravações e transcrições ficam no seu computador. Se você escolher um provedor externo para resumos, o texto necessário será enviado a esse provedor com a sua autorização.
                     </p>
                 </div>
             </div>
@@ -89,22 +87,17 @@ export function About() {
                     onClick={handleContactClick}
                     className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded transition-colors duration-200 shadow-sm hover:shadow-md"
                 >
-                    Chat with the Zackriya team
+                    Abrir o projeto EmpathyIA
                 </button>
             </div>
 
             {/* Footer - Compact */}
             <div className="pt-2 border-t border-gray-200 text-center">
                 <p className="text-xs text-gray-400">
-                    Built by Zackriya Solutions
+                    EmpathyIA é software livre derivado do Meetily, com atribuição preservada na licença.
                 </p>
             </div>
 
-            <UpdateDialog
-                open={showUpdateDialog}
-                onOpenChange={setShowUpdateDialog}
-                updateInfo={null}
-            />
         </div>
 
     )

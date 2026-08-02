@@ -1,152 +1,49 @@
-# Contributing to Meeting Minutes Updates
+# Contribuindo com o EmpathyIA
 
-Thank you for your interest in contributing to Meetily! This document provides guidelines and instructions for contributing to this project.
+Obrigado por contribuir. O repositório oficial é
+[`gabriellopesgabs/EmpathyIA`](https://github.com/gabriellopesgabs/EmpathyIA).
 
-## Development Workflow
+## Preparação
 
-### Branch Strategy
+1. Faça um fork do repositório.
+2. Clone o seu fork e entre no diretório `frontend`:
 
-- `main` - Production branch
-- `devtest` - Development and testing branch
-- Feature branches should be created from `devtest`
-
-### Getting Started
-
-1. Fork the repository
-2. Clone your fork:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/meeting-minutes.git
-   ```
-3. Add the original repository as upstream:
-   ```bash
-   git remote add upstream https://github.com/Zackriya-Solutions/meeting-minutes.git
-   ```
-4. Create a new branch from `devtest`:
-   ```bash
-   git checkout devtest
-   git pull upstream devtest
-   git checkout -b feature/your-feature-name
+   git clone https://github.com/SEU_USUARIO/EmpathyIA.git
+   cd EmpathyIA/frontend
    ```
 
-### Development Process
+3. Instale Node.js 20+, pnpm 11.9, Rust 1.88+, CMake e FFmpeg.
+4. Instale as dependências com `pnpm install --frozen-lockfile`.
 
-1. Always start your work from the `devtest` branch
-2. Create a new branch for each feature/fix
-3. Make your changes
-4. Write or update tests as needed
-5. Ensure all tests pass
-6. Update documentation if necessary
+## Fluxo de contribuição
 
-### Issue Creation
+- Crie uma branch curta a partir de `main`.
+- Mantenha cada pull request focado em uma mudança coerente.
+- Não inclua chaves de API, áudios, transcrições ou bancos de dados pessoais.
+- Atualize testes e documentação quando o comportamento mudar.
+- Abra o pull request contra `main` e descreva como a mudança foi validada.
 
-Before starting work on a new feature or bug fix:
+Antes de enviar:
 
-1. Check if an issue already exists
-2. If not, create a new issue with:
-   - Clear title
-   - Detailed description
-   - Steps to reproduce (for bugs)
-   - Expected behavior
-   - Screenshots (if applicable)
-   - Labels (bug, enhancement, etc.)
+```bash
+cd frontend
+pnpm check
+pnpm build
+pnpm audit --prod --audit-level high
 
-### Pull Request Process
-
-1. Create a PR from your feature branch to `devtest`
-2. Link the PR to the related issue using the issue number (e.g., "Fixes #123")
-3. Fill out the PR template completely
-4. Ensure CI checks pass
-5. Request review from at least one maintainer
-6. Address any review comments
-7. Once approved, the PR will be merged into `devtest`
-
-### PR Template
-
-```markdown
-## Description
-[Describe your changes here]
-
-## Related Issue
-[Link to the issue this PR addresses]
-
-## Type of Change
-- [ ] Bug fix
-- [ ] New feature
-- [ ] Documentation update
-- [ ] Performance improvement
-- [ ] Code refactoring
-- [ ] Other (please describe)
-
-## Testing
-- [ ] Unit tests added/updated
-- [ ] Manual testing performed
-- [ ] All tests pass
-
-## Documentation
-- [ ] Documentation updated
-- [ ] No documentation needed
-
-## Checklist
-- [ ] Code follows project style
-- [ ] Self-reviewed the code
-- [ ] Added comments for complex code
-- [ ] Updated README if needed
+cd ..
+cargo fmt --all --check
+cargo test --workspace
+cargo clippy --workspace --all-targets
 ```
 
-## Code Style
+## Relatos de problemas
 
-- Follow the existing code style
-- Use meaningful variable and function names
-- Add comments for complex logic
-- Keep functions small and focused
-- Write clear commit messages
+Abra uma [issue no EmpathyIA](https://github.com/gabriellopesgabs/EmpathyIA/issues) com passos para
+reproduzir, comportamento esperado, sistema operacional e logs sem dados pessoais.
 
-## Commit Message Format
+## Licença
 
-```
-<type>(<scope>): <subject>
-
-<body>
-
-<footer>
-```
-
-Types:
-- feat: New feature
-- fix: Bug fix
-- docs: Documentation changes
-- style: Code style changes
-- refactor: Code refactoring
-- test: Adding/updating tests
-- chore: Maintenance tasks
-
-## Testing
-
-- Write unit tests for new features
-- Update existing tests when modifying code
-- Ensure all tests pass before submitting PR
-- Include integration tests for complex features
-
-## Documentation
-
-- Update documentation for new features
-- Keep README up to date
-- Document API changes
-- Add comments for complex code
-
-## Review Process
-
-1. PRs require at least one review
-2. Address all review comments
-3. Keep the PR up to date with `devtest`
-4. Squash commits if requested
-
-## Getting Help
-
-- Create an issue for questions
-- Join our community chat
-- Contact maintainers
-
-## License
-
-By contributing, you agree that your contributions will be licensed under the project's MIT License. 
+As contribuições são disponibilizadas sob a licença MIT do projeto. O EmpathyIA é derivado do
+Meetily e preserva a atribuição original na licença.

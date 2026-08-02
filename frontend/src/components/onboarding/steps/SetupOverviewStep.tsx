@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { OnboardingContainer } from '../OnboardingContainer';
 import { useOnboarding } from '@/contexts/OnboardingContext';
+import { usePlatform } from '@/hooks/usePlatform';
 import {
   Tooltip,
   TooltipContent,
@@ -12,19 +13,7 @@ import {
 
 export function SetupOverviewStep() {
   const { goNext } = useOnboarding();
-  const [isMac, setIsMac] = useState(false);
-
-  useEffect(() => {
-    const checkPlatform = async () => {
-      try {
-        const { platform } = await import('@tauri-apps/plugin-os');
-        setIsMac(platform() === 'macos');
-      } catch (e) {
-        setIsMac(navigator.userAgent.includes('Mac'));
-      }
-    };
-    checkPlatform();
-  }, []);
+  const isMac = usePlatform() === 'macos';
 
   const steps = [
     {
@@ -98,7 +87,7 @@ export function SetupOverviewStep() {
           </Button>
           <div className="text-center">
             <a
-              href="https://github.com/Zackriya-Solutions/meeting-minutes"
+              href="https://github.com/gabriellopesgabs/EmpathyIA/issues"
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-gray-600 hover:underline"

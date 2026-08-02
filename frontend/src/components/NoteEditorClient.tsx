@@ -85,7 +85,7 @@ export function NoteEditorClient({ id }: NoteEditorClientProps) {
     };
 
     const existingIndex = stored.findIndex((n) => n.id === note.id);
-    let newStored = [...stored];
+    const newStored = [...stored];
 
     if (existingIndex >= 0) {
       newStored[existingIndex] = updatedNote;
