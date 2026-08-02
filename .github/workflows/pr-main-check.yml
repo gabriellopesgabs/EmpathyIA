@@ -50,6 +50,11 @@ jobs:
           components: rustfmt, clippy
       - uses: swatinem/rust-cache@v2
       - run: cargo fmt --all --check
+      - name: Build Linux sidecar required by Tauri
+        run: |
+          cargo build --locked -p llama-helper
+          mkdir -p frontend/src-tauri/binaries
+          cp target/debug/llama-helper frontend/src-tauri/binaries/llama-helper-x86_64-unknown-linux-gnu
       - run: cargo test --workspace --locked
       # Clippy is informational until the inherited warning backlog is retired.
       - run: cargo clippy --workspace --all-targets --locked
