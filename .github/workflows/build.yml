@@ -37,8 +37,6 @@ jobs:
   build:
     name: ${{ inputs.artifact-name }}
     runs-on: ${{ inputs.platform }}
-    permissions:
-      contents: write
     env:
       CARGO_TERM_COLOR: always
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
