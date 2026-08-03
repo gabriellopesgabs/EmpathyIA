@@ -48,12 +48,12 @@ usuário os configura e seleciona explicitamente.
 
 ## Distribuição e atualizações
 
-O atualizador automático está desativado. Builds públicos não devem reativá-lo até que o projeto
-tenha canal de releases próprio, chave de assinatura própria e procedimento documentado de rotação
-e revogação.
+O atualizador consulta exclusivamente o `latest.json` publicado em
+`gabriellopesgabs/EmpathyIA`. A assinatura criptográfica do pacote é obrigatória; uma versão criada
+com outra chave é rejeitada. O workflow cria primeiro um rascunho e nunca o publica automaticamente.
 
 Consulte também [o README principal](../README.md), [a política de privacidade](../PRIVACY_POLICY.md)
-e [as instruções de build](../docs/BUILDING.md).
+e [o procedimento de release](../docs/RELEASING.md).
 
 ## Origem e licença
 

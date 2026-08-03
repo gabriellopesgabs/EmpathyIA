@@ -42,7 +42,7 @@ export function LegacyDatabaseImport({ isOpen, onComplete }: LegacyDatabaseImpor
         setDetectedPath(dbPath);
         setImportState('idle');
       } else {
-        setErrorMessage('No legacy database found. Select the previous Meetily folder, backend folder, or database file directly.');
+        setErrorMessage('Nenhum banco legado foi encontrado. Selecione a pasta da instalação anterior do Meetily, a pasta backend ou o arquivo do banco.');
         setDetectedPath(null);
         setImportState('error');
         setTimeout(() => setImportState('idle'), 3000);
@@ -121,7 +121,7 @@ export function LegacyDatabaseImport({ isOpen, onComplete }: LegacyDatabaseImpor
         <DialogHeader>
           <DialogTitle className="text-2xl">Welcome to Empathy!</DialogTitle>
           <DialogDescription className="text-base pt-2">
-            Do you have data from a previous Meetily installation?
+            Você possui dados de uma instalação anterior do Meetily?
           </DialogDescription>
         </DialogHeader>
 
@@ -135,7 +135,7 @@ export function LegacyDatabaseImport({ isOpen, onComplete }: LegacyDatabaseImpor
           {/* Browse Section */}
           <div className="space-y-3">
             <p className="text-sm text-gray-600">
-              Select your previous Meetily folder, backend directory, or database file:
+              Selecione a pasta antiga do Meetily, a pasta backend ou o arquivo do banco:
             </p>
 
             <button

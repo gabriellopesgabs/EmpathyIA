@@ -1,35 +1,49 @@
-name: "Build Test"
+name: Desktop build matrix
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/build.yml"
+      - ".github/workflows/build-test.yml"
+      - "Cargo.lock"
+      - "Cargo.toml"
+      - "frontend/**"
+      - "llama-helper/**"
+
+concurrency:
+  group: desktop-build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build-test:
+  build:
     permissions:
-      contents: write
+      contents: read
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: "macos-latest" # for Apple Silicon only (M1 and above)
-            args: "--target aarch64-apple-darwin"
-            target: "aarch64-apple-darwin"
-          - platform: "ubuntu-22.04" # Build .deb on 22.04
-            args: "--bundles deb"
-            target: "x86_64-unknown-linux-gnu"
-          - platform: "ubuntu-24.04" # Build AppImage and RPM on 24.04
-            args: "--bundles appimage,rpm"
-            target: "x86_64-unknown-linux-gnu"
-          - platform: "windows-latest"
-            args: ""
-            target: "x86_64-pc-windows-msvc"
-
+          - platform: macos-15
+            target: aarch64-apple-darwin
+            bundles: dmg
+            artifact: empathy-macos-arm64
+          - platform: macos-15-intel
+            target: x86_64-apple-darwin
+            bundles: dmg
+            artifact: empathy-macos-x64
+          - platform: windows-2025
+            target: x86_64-pc-windows-msvc
+            bundles: nsis,msi
+            artifact: empathy-windows-x64
+          - platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            bundles: deb,appimage
+            artifact: empathy-linux-x64
     uses: ./.github/workflows/build.yml
     with:
       platform: ${{ matrix.platform }}
       target: ${{ matrix.target }}
-      build-args: ${{ matrix.args }}
-      sign-binaries: true
-      asset-prefix: "empathy-test"
-      upload-artifacts: true
-      is-debug-build: ${{ contains(matrix.args, '--debug') }}
+      bundles: ${{ matrix.bundles }}
+      artifact-name: ${{ matrix.artifact }}
+      upload-artifact: true
     secrets: inherit

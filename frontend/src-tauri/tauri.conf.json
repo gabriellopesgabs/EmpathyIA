@@ -2,7 +2,7 @@
     "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
     "productName": "Empathy",
     "version": "0.4.0",
-    "identifier": "ai.empathy.app",
+    "identifier": "ai.empathy.desktop",
     "build": {
         "frontendDist": "../out",
         "devUrl": "http://localhost:3118",
@@ -61,6 +61,8 @@
                         "store:default",
                         "notification:default",
                         "notification:allow-is-permission-granted",
+                        "updater:default",
+                        "process:allow-restart",
                         {
                             "identifier": "fs:scope",
                             "allow": [
@@ -84,7 +86,7 @@
             "app",
             "dmg"
         ],
-        "createUpdaterArtifacts": false,
+        "createUpdaterArtifacts": true,
         "icon": [
             "icons/icon.png",
             "icons/app_icon.icns",
@@ -104,6 +106,17 @@
         },
         "windows": {
             "signCommand": "powershell -ExecutionPolicy Bypass -File scripts/sign-windows.ps1 -FilePath %1"
+        }
+    },
+    "plugins": {
+        "updater": {
+            "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDEwOTRFMTkxMUY0Q0NCOUMKUldTY3kwd2ZrZUdVRUY4ZStoVmx6Z2l5dGdUMzQ4emc0eEt2dm1iMzJvaGVTUFZWZjRwcGlNeGoK",
+            "endpoints": [
+                "https://github.com/gabriellopesgabs/EmpathyIA/releases/latest/download/latest.json"
+            ],
+            "windows": {
+                "installMode": "passive"
+            }
         }
     }
 }

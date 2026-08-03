@@ -53,10 +53,14 @@ caminhos locais ou chaves de API.
 
 ## Atualizações e distribuição
 
-O EmpathyIA não realiza atualização automática enquanto não houver um canal próprio e assinado.
-Novas versões devem ser obtidas somente em
-[gabriellopesgabs/EmpathyIA Releases](https://github.com/gabriellopesgabs/EmpathyIA/releases).
-O aplicativo não confia em manifestos, chaves ou artefatos de atualização do projeto upstream.
+O EmpathyIA consulta o GitHub para verificar se há uma nova versão no canal oficial
+[gabriellopesgabs/EmpathyIA Releases](https://github.com/gabriellopesgabs/EmpathyIA/releases). Essa
+consulta informa ao GitHub dados técnicos normais de uma conexão, como endereço IP e agente do
+cliente, mas não envia áudio, transcrições, resumos nem nomes de reuniões. A consulta automática é
+limitada a uma vez a cada 24 horas; também pode ser iniciada manualmente na tela Sobre.
+
+Uma atualização só é instalada depois da confirmação do usuário e da validação de sua assinatura
+criptográfica. O aplicativo não confia em manifestos, chaves ou artefatos do projeto upstream.
 
 ## Segurança e responsabilidade do usuário
 
