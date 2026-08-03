@@ -1,6 +1,6 @@
 import { NoteEditorClient } from '@/components/NoteEditorClient';
 
-export const dynamicParams = true;
+export const dynamicParams = false;
 
 export function generateStaticParams() {
   return [
@@ -12,11 +12,12 @@ export function generateStaticParams() {
 }
 
 interface PageProps {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
-export default function NotePage({ params }: PageProps) {
-  return <NoteEditorClient id={params.id} />;
+export default async function NotePage({ params }: PageProps) {
+  const { id } = await params;
+  return <NoteEditorClient id={id} />;
 }

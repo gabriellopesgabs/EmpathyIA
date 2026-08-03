@@ -8,9 +8,8 @@ use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
 // Compile regex once and reuse (significant performance improvement for repeated calls)
-static THINKING_TAG_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"(?s)<think(?:ing)?>.*?</think(?:ing)?>").unwrap()
-});
+static THINKING_TAG_REGEX: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"(?s)<think(?:ing)?>.*?</think(?:ing)?>").unwrap());
 
 const ENGLISH_BASE_SUMMARY_INSTRUCTION: &str =
     "**Write the summary/report in English regardless of transcript language; non-English prose is invalid.**";
@@ -23,7 +22,11 @@ fn resolve_cached_english<'a>(
     let target_is_translation = summary_language
         .and_then(language_name_from_code)
         .is_some_and(|n| n != "English");
-    if target_is_translation { Some(cached_clean) } else { None }
+    if target_is_translation {
+        Some(cached_clean)
+    } else {
+        None
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -357,7 +360,10 @@ pub async fn generate_meeting_summary(
     let (mut english_markdown, successful_chunk_count) = if let Some(cached) =
         resolve_cached_english(cached_english, summary_language)
     {
-        info!("✓ Using cached English summary ({} chars), skipping pass 1", cached.len());
+        info!(
+            "✓ Using cached English summary ({} chars), skipping pass 1",
+            cached.len()
+        );
         (cached.to_string(), 1_i64)
     } else {
         let content_to_summarize: String;
@@ -366,7 +372,9 @@ pub async fn generate_meeting_summary(
         // Strategy: Use single-pass for cloud providers or short transcripts
         // Use multi-level chunking for Ollama/BuiltInAI with long transcripts
         // Note: CustomOpenAI is treated like cloud providers (unlimited context)
-        if (provider != &LLMProvider::Ollama && provider != &LLMProvider::BuiltInAI) || total_tokens < token_threshold {
+        if (provider != &LLMProvider::Ollama && provider != &LLMProvider::BuiltInAI)
+            || total_tokens < token_threshold
+        {
             info!(
                 "Using single-pass summarization (tokens: {}, threshold: {})",
                 total_tokens, token_threshold
@@ -391,7 +399,11 @@ pub async fn generate_meeting_summary(
                 // Check for cancellation before processing each chunk
                 if let Some(token) = cancellation_token {
                     if token.is_cancelled() {
-                        info!("Summary generation cancelled during chunk {}/{}", i + 1, num_chunks);
+                        info!(
+                            "Summary generation cancelled during chunk {}/{}",
+                            i + 1,
+                            num_chunks
+                        );
                         return Err("Summary generation was cancelled".to_string());
                     }
                 }
@@ -477,7 +489,10 @@ pub async fn generate_meeting_summary(
             };
         }
 
-        info!("Generating final markdown report with template: {}", template_id);
+        info!(
+            "Generating final markdown report with template: {}",
+            template_id
+        );
 
         // Generate markdown structure and section instructions using template methods
         let clean_template_markdown = template.to_markdown_structure();
@@ -486,9 +501,8 @@ pub async fn generate_meeting_summary(
         let final_system_prompt =
             build_final_report_system_prompt(&section_instructions, &clean_template_markdown);
 
-        let mut final_user_prompt = format!(
-            "<transcript_chunks>\n{content_to_summarize}\n</transcript_chunks>\n"
-        );
+        let mut final_user_prompt =
+            format!("<transcript_chunks>\n{content_to_summarize}\n</transcript_chunks>\n");
 
         if !custom_prompt.is_empty() {
             final_user_prompt.push_str("\n\nUser Provided Context:\n\n<user_context>\n");
@@ -504,12 +518,13 @@ pub async fn generate_meeting_summary(
             }
         }
 
-        let (grammar, grammar_root) = if provider == &LLMProvider::BuiltInAI && template_id == "standard_meeting" {
-            let grammar_str = include_str!("summary_schema.gbnf").to_string();
-            (Some(grammar_str), Some("root".to_string()))
-        } else {
-            (None, None)
-        };
+        let (grammar, grammar_root) =
+            if provider == &LLMProvider::BuiltInAI && template_id == "standard_meeting" {
+                let grammar_str = include_str!("summary_schema.gbnf").to_string();
+                (Some(grammar_str), Some("root".to_string()))
+            } else {
+                (None, None)
+            };
 
         let raw_markdown = generate_summary(
             client,
@@ -530,7 +545,9 @@ pub async fn generate_meeting_summary(
         )
         .await?;
 
-        let processed_summary = if provider == &LLMProvider::BuiltInAI && template_id == "standard_meeting" {
+        let processed_summary = if provider == &LLMProvider::BuiltInAI
+            && template_id == "standard_meeting"
+        {
             convert_structured_json_to_markdown(&raw_markdown).unwrap_or_else(|| {
                 log::warn!("Failed to parse structured JSON summary, falling back to raw output");
                 clean_llm_markdown_output(&raw_markdown)
@@ -544,7 +561,10 @@ pub async fn generate_meeting_summary(
         (english_markdown, successful_chunk_count)
     };
 
-    let final_markdown = match resolve_final_language_action(summary_language, detected_transcript_language) {
+    let final_markdown = match resolve_final_language_action(
+        summary_language,
+        detected_transcript_language,
+    ) {
         FinalLanguageAction::Translate(name) => {
             match translate_markdown(
                 client,
@@ -808,13 +828,11 @@ mod tests {
 
     #[test]
     fn cancelled_english_normalization_is_not_swallowed() {
-        assert!(
-            english_markdown_after_normalization_result(
-                "# Original",
-                Err("Summary generation was cancelled".to_string())
-            )
-            .is_err()
-        );
+        assert!(english_markdown_after_normalization_result(
+            "# Original",
+            Err("Summary generation was cancelled".to_string())
+        )
+        .is_err());
     }
 
     // resolve_cached_english matrix -------------------------------------------
@@ -852,18 +870,27 @@ mod tests {
 
     #[test]
     fn valid_cache_french_target_returns_cache() {
-        assert_eq!(resolve_cached_english(Some("body"), Some("fr")), Some("body"));
+        assert_eq!(
+            resolve_cached_english(Some("body"), Some("fr")),
+            Some("body")
+        );
     }
 
     #[test]
     fn valid_cache_unknown_language_returns_none() {
         // Unknown code -> language_name_from_code returns None -> not a translation
-        assert_eq!(resolve_cached_english(Some("body"), Some("zz-unknown")), None);
+        assert_eq!(
+            resolve_cached_english(Some("body"), Some("zz-unknown")),
+            None
+        );
     }
 
     #[test]
     fn uppercase_translation_code_returns_cache() {
-        assert_eq!(resolve_cached_english(Some("body"), Some("FR")), Some("body"));
+        assert_eq!(
+            resolve_cached_english(Some("body"), Some("FR")),
+            Some("body")
+        );
     }
 
     #[test]
@@ -903,11 +930,11 @@ struct StructuredSummary {
 fn convert_structured_json_to_markdown(json_str: &str) -> Option<String> {
     let structured: StructuredSummary = serde_json::from_str(json_str).ok()?;
     let mut md = String::new();
-    
+
     md.push_str("# Meeting Summary\n\n");
     md.push_str(&structured.summary);
     md.push_str("\n\n");
-    
+
     if !structured.topics.is_empty() {
         md.push_str("## Key Topics\n\n");
         for topic in &structured.topics {
@@ -918,7 +945,7 @@ fn convert_structured_json_to_markdown(json_str: &str) -> Option<String> {
             md.push_str("\n");
         }
     }
-    
+
     if !structured.action_items.is_empty() {
         md.push_str("## Action Items\n\n");
         for item in &structured.action_items {
@@ -929,7 +956,7 @@ fn convert_structured_json_to_markdown(json_str: &str) -> Option<String> {
             if !item.due_date.is_empty() {
                 meta.push(format!("Due: {}", item.due_date));
             }
-            
+
             if meta.is_empty() {
                 md.push_str(&format!("- [ ] {}\n", item.task));
             } else {
@@ -938,6 +965,6 @@ fn convert_structured_json_to_markdown(json_str: &str) -> Option<String> {
         }
         md.push_str("\n");
     }
-    
+
     Some(md)
 }

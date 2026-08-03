@@ -1,5 +1,5 @@
-use std::sync::Mutex;
 use once_cell::sync::Lazy;
+use std::sync::Mutex;
 
 #[derive(Debug, Clone)]
 struct SpeakerCluster {
@@ -34,11 +34,13 @@ pub fn identify_speaker(samples: &[f32]) -> String {
     // 3. Cluster matching using Euclidean distance of normalized voiceprint features
     let mut speakers = SPEAKERS.lock().unwrap();
     let threshold = 0.15; // Clustering threshold
-    
+
     let mut best_match: Option<(usize, f32)> = None;
 
     for (idx, speaker) in speakers.iter().enumerate() {
-        let dist = ((speaker.centroid_zcr - zcr).powi(2) + (speaker.centroid_variance - variance).powi(2)).sqrt();
+        let dist = ((speaker.centroid_zcr - zcr).powi(2)
+            + (speaker.centroid_variance - variance).powi(2))
+        .sqrt();
         if dist < threshold {
             match best_match {
                 Some((_, best_dist)) if dist < best_dist => {

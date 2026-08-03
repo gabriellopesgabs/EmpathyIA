@@ -2,7 +2,7 @@ import { useRef, useState, useEffect, useCallback, RefObject } from "react";
 import { Virtualizer } from "@tanstack/react-virtual";
 
 interface UseAutoScrollProps {
-    scrollRef: RefObject<HTMLDivElement | null>;
+    scrollRef: RefObject<HTMLDivElement>;
     segments: any[];
     isRecording: boolean;
     isPaused: boolean;

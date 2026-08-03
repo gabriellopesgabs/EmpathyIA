@@ -77,7 +77,7 @@ This document provides a quick overview of all available CI/CD workflows in this
 **Key Features:**
 - Support for Ubuntu 22.04 and 24.04
 - Multiple bundle formats (DEB, AppImage, RPM)
-- Tauri updater signing
+- installer code signing
 - AppImage compatibility fixes
 - Package verification
 
@@ -104,7 +104,7 @@ This document provides a quick overview of all available CI/CD workflows in this
 - All platforms in parallel
 - Uses reusable `build.yml` workflow
 - 30-day artifact retention
-- Artifacts prefixed with `meetily-test-`
+- Artifacts prefixed with `empathy-test-`
 
 **Triggers:**
 - Manual dispatch only
@@ -137,7 +137,7 @@ This document provides a quick overview of all available CI/CD workflows in this
 - Version tags from `tauri.conf.json`
 - Uploads release assets
 - **macOS and Windows only** (Linux excluded from production releases)
-- Auto-generates `latest.json` for Tauri updater
+- Automatic application updates are intentionally disabled.
 - **Auto-increment versioning**: If tag exists, auto-increments (e.g., `0.1.1` -> `0.1.1.1` -> `0.1.1.2`, up to `.100`)
 
 **Triggers:**
@@ -149,9 +149,9 @@ This document provides a quick overview of all available CI/CD workflows in this
 
 **Outputs:**
 - GitHub Release (draft)
-- macOS: DMG installer, app.tar.gz (updater), .sig
+- macOS: DMG installer, signed installer
 - Windows: MSI installer (signed), NSIS installer (signed), .sig files
-- Updater manifest: latest.json
+- Installers are distributed manually from EmpathyIA GitHub Releases.
 - Release notes auto-generated
 
 **Version Behavior:**
@@ -263,13 +263,13 @@ Standalone (don't use build.yml):
 ## Artifact Naming Convention
 
 ```
-meetily-{workflow}-{platform}-{target}-{version}
+empathy-{workflow}-{platform}-{target}-{version}
 ```
 
 **Examples:**
-- `meetily-devtest-macOS-aarch64-apple-darwin-0.1.3`
-- `meetily-test-windows-x86_64-pc-windows-msvc-0.1.3`
-- `meetily-macos-aarch64-release-0.1.3`
+- `empathy-devtest-macOS-aarch64-apple-darwin-0.1.3`
+- `empathy-test-windows-x86_64-pc-windows-msvc-0.1.3`
+- `empathy-macos-aarch64-release-0.1.3`
 
 ---
 
@@ -292,14 +292,13 @@ All workflows require these secrets to be configured:
 - `SM_CLIENT_CERT_PASSWORD` - Client cert password
 - `SM_CODE_SIGNING_CERT_SHA1_HASH` - Certificate hash
 
-### Tauri Updater (All Platforms)
-- `TAURI_SIGNING_PRIVATE_KEY` - Ed25519 private key
-- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` - Key password
+### Application updates
+
+The inherited Tauri updater is disabled until EmpathyIA owns a signed update
+channel, signing key rotation and revocation procedure. Release workflows must
+not publish or advertise an upstream update manifest.
 
 ### Application Configuration
-- `MEETILY_RSA_PUBLIC_KEY` - License validation public key
-- `SUPABASE_URL` - Online license verification
-- `SUPABASE_ANON_KEY` - Supabase anonymous key
 
 ---
 

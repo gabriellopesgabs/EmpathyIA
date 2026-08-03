@@ -60,8 +60,8 @@ When signing is enabled:
 - Verifies signatures with PowerShell
 
 ### Linux
-- Uses **Tauri updater signing** (Ed25519)
-- Signs update manifests for auto-updater
+- Uses **installer code signing** (Ed25519)
+- Signs update manifests for installer distribution
 
 ## Build Artifacts
 
