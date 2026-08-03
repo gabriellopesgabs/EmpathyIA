@@ -4,8 +4,8 @@ Assistente desktop de reuniões com transcrição local, organização por pasta
 
 > O EmpathyIA está em desenvolvimento. Use apenas os artefatos publicados em
 > [gabriellopesgabs/EmpathyIA Releases](https://github.com/gabriellopesgabs/EmpathyIA/releases).
-> O aplicativo não instala atualizações automaticamente enquanto não houver um canal próprio,
-> assinado e auditável.
+> O aplicativo consulta apenas o canal próprio do EmpathyIA e só instala pacotes cuja assinatura
+> corresponda à chave pública incorporada ao aplicativo.
 
 ## Privacidade em linguagem direta
 
@@ -60,8 +60,10 @@ FFmpeg revisado por `EMPATHY_FFMPEG_PATH`.
 
 - Não existe fallback para o atualizador ou para chaves de assinatura do projeto upstream.
 - Releases oficiais pertencem exclusivamente a `gabriellopesgabs/EmpathyIA`.
-- Atualização automática só deverá voltar quando o EmpathyIA possuir chave própria, manifesto
-  assinado, processo de rotação e plano de revogação.
+- O manifesto `latest.json` e seus pacotes são gerados pelo workflow de release com a chave própria
+  do EmpathyIA. A publicação continua sendo uma ação manual depois da revisão do rascunho.
+- Builds de teste são artefatos de CI, não releases públicas. Consulte
+  [o procedimento de release](docs/RELEASING.md) antes de distribuir uma versão.
 
 ## Origem e licença
 

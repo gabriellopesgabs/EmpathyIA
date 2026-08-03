@@ -1,184 +1,137 @@
-name: "Release"
+name: Draft release
 
 on:
   workflow_dispatch:
+    inputs:
+      confirm-version:
+        description: "Versão exata de tauri.conf.json (ex.: 0.4.1)"
+        required: true
+        type: string
 
-# Prevent duplicate releases
 concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: false  # Don't cancel releases, fail instead
+  group: empathy-release
+  cancel-in-progress: false
 
 jobs:
-  # STEP 1: Create draft release first
-  create-release:
+  preflight:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate version and updater key
+        id: version
+        env:
+          CONFIRM_VERSION: ${{ inputs.confirm-version }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          FFMPEG_MACOS_ARM64_URL: ${{ vars.FFMPEG_MACOS_ARM64_URL }}
+          FFMPEG_MACOS_ARM64_SHA256: ${{ vars.FFMPEG_MACOS_ARM64_SHA256 }}
+          FFMPEG_MACOS_X64_URL: ${{ vars.FFMPEG_MACOS_X64_URL }}
+          FFMPEG_MACOS_X64_SHA256: ${{ vars.FFMPEG_MACOS_X64_SHA256 }}
+          FFMPEG_WINDOWS_X64_URL: ${{ vars.FFMPEG_WINDOWS_X64_URL }}
+          FFMPEG_WINDOWS_X64_SHA256: ${{ vars.FFMPEG_WINDOWS_X64_SHA256 }}
+          FFMPEG_LINUX_X64_URL: ${{ vars.FFMPEG_LINUX_X64_URL }}
+          FFMPEG_LINUX_X64_SHA256: ${{ vars.FFMPEG_LINUX_X64_SHA256 }}
+        run: |
+          test "$GITHUB_REF" = "refs/heads/main"
+          VERSION=$(node -p "require('./frontend/src-tauri/tauri.conf.json').version")
+          PACKAGE_VERSION=$(node -p "require('./frontend/package.json').version")
+          CARGO_VERSION=$(sed -n '/^\[package\]/,/^\[/ s/^version = "\([^"]*\)"/\1/p' frontend/src-tauri/Cargo.toml | head -1)
+          test "$VERSION" = "$CONFIRM_VERSION"
+          test "$VERSION" = "$PACKAGE_VERSION"
+          test "$VERSION" = "$CARGO_VERSION"
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          test -n "$TAURI_SIGNING_PRIVATE_KEY"
+          test -n "$FFMPEG_MACOS_ARM64_URL" && test -n "$FFMPEG_MACOS_ARM64_SHA256"
+          test -n "$FFMPEG_MACOS_X64_URL" && test -n "$FFMPEG_MACOS_X64_SHA256"
+          test -n "$FFMPEG_WINDOWS_X64_URL" && test -n "$FFMPEG_WINDOWS_X64_SHA256"
+          test -n "$FFMPEG_LINUX_X64_URL" && test -n "$FFMPEG_LINUX_X64_SHA256"
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "A tag v$VERSION já existe. Atualize a versão nos três arquivos." >&2
+            exit 1
+          fi
+          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
+
+  create-draft:
+    needs: preflight
+    runs-on: ubuntu-22.04
     permissions:
       contents: write
-    runs-on: ubuntu-latest
     outputs:
-      release-id: ${{ steps.create-release.outputs.result }}
-      version: ${{ steps.get-version.outputs.version }}
+      release-id: ${{ steps.release.outputs.result }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Fetch all tags
-
-      - name: Get version from tauri.conf.json and check for existing tags
-        id: get-version
-        shell: bash
-        run: |
-          BASE_VERSION=$(grep -o '"version": "[^"]*"' frontend/src-tauri/tauri.conf.json | cut -d'"' -f4)
-          echo "Base version from tauri.conf.json: $BASE_VERSION"
-
-          # Fetch all tags
-          git fetch --tags
-
-          # Check if base version tag exists
-          if git tag -l "v${BASE_VERSION}" | grep -q .; then
-            echo "Tag v${BASE_VERSION} already exists, looking for minor updates..."
-
-            # Find all existing minor versions (e.g., 0.1.1.1, 0.1.1.2, etc.)
-            LATEST_MINOR=0
-            for i in $(seq 1 100); do
-              if git tag -l "v${BASE_VERSION}.${i}" | grep -q .; then
-                LATEST_MINOR=$i
-              else
-                break
-              fi
-            done
-
-            # Increment to next minor version
-            NEXT_MINOR=$((LATEST_MINOR + 1))
-
-            if [ $NEXT_MINOR -gt 100 ]; then
-              echo "ERROR: Maximum minor version (100) reached for ${BASE_VERSION}"
-              echo "Please update the version in tauri.conf.json"
-              exit 1
-            fi
-
-            VERSION="${BASE_VERSION}.${NEXT_MINOR}"
-            echo "Using minor update version: $VERSION"
-          else
-            VERSION="${BASE_VERSION}"
-            echo "Using base version: $VERSION"
-          fi
-
-          echo "Final version: $VERSION"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Create Draft Release
-        id: create-release
+      - name: Create draft release
+        id: release
         uses: actions/github-script@v7
         with:
           script: |
             const { data } = await github.rest.repos.createRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              tag_name: `v${{ steps.get-version.outputs.version }}`,
-              name: `Empathy v${{ steps.get-version.outputs.version }}`,
+              tag_name: `v${{ needs.preflight.outputs.version }}`,
+              target_commitish: context.sha,
+              name: `Empathy v${{ needs.preflight.outputs.version }}`,
               draft: true,
               prerelease: false,
               generate_release_notes: true
-            })
-            console.log(`Created draft release with ID: ${data.id}`)
-            return data.id
+            });
+            return String(data.id);
 
-  # STEP 2: Build all platforms and upload directly to release
-  # Note: Linux builds are excluded from release (only macOS and Windows)
-  build-all-platforms:
-    needs: create-release
-    permissions:
-      contents: write
+  build:
+    needs: [preflight, create-draft]
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: "macos-latest" # for Apple Silicon only (M1 and above)
-            args: "--target aarch64-apple-darwin"
-            target: "aarch64-apple-darwin"
-          - platform: "windows-latest"
-            args: ""
-            target: "x86_64-pc-windows-msvc"
-
+          - platform: macos-15
+            target: aarch64-apple-darwin
+            bundles: dmg
+            artifact: empathy-macos-arm64
+            ffmpeg_url: ${{ vars.FFMPEG_MACOS_ARM64_URL }}
+            ffmpeg_sha256: ${{ vars.FFMPEG_MACOS_ARM64_SHA256 }}
+          - platform: macos-15-intel
+            target: x86_64-apple-darwin
+            bundles: dmg
+            artifact: empathy-macos-x64
+            ffmpeg_url: ${{ vars.FFMPEG_MACOS_X64_URL }}
+            ffmpeg_sha256: ${{ vars.FFMPEG_MACOS_X64_SHA256 }}
+          - platform: windows-2025
+            target: x86_64-pc-windows-msvc
+            bundles: nsis,msi
+            artifact: empathy-windows-x64
+            ffmpeg_url: ${{ vars.FFMPEG_WINDOWS_X64_URL }}
+            ffmpeg_sha256: ${{ vars.FFMPEG_WINDOWS_X64_SHA256 }}
+          - platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            bundles: deb,appimage
+            artifact: empathy-linux-x64
+            ffmpeg_url: ${{ vars.FFMPEG_LINUX_X64_URL }}
+            ffmpeg_sha256: ${{ vars.FFMPEG_LINUX_X64_SHA256 }}
     uses: ./.github/workflows/build.yml
     with:
       platform: ${{ matrix.platform }}
       target: ${{ matrix.target }}
-      build-args: ${{ matrix.args }}
-      sign-binaries: true
-      asset-prefix: "empathy"
-      upload-artifacts: false  # tauri-action uploads directly to release
-      release-id: ${{ needs.create-release.outputs.release-id }}
+      bundles: ${{ matrix.bundles }}
+      artifact-name: ${{ matrix.artifact }}
+      release-id: ${{ needs.create-draft.outputs.release-id }}
+      upload-artifact: false
+      ffmpeg-url: ${{ matrix.ffmpeg_url }}
+      ffmpeg-sha256: ${{ matrix.ffmpeg_sha256 }}
     secrets: inherit
 
-  # STEP 3: Show release summary
-  release-summary:
-    needs: [create-release, build-all-platforms]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
+  summary:
+    needs: [preflight, create-draft, build]
+    runs-on: ubuntu-22.04
     steps:
-      - name: Get release assets
-        id: release-info
+      - name: Require manual review and publication
         run: |
-          VERSION="${{ needs.create-release.outputs.version }}"
-          RELEASE_ID="${{ needs.create-release.outputs.release-id }}"
-
-          echo "## Release Assets" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          # List all release assets
-          echo "### Files in Release" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          gh api repos/${{ github.repository }}/releases/${RELEASE_ID}/assets --jq '.[] | "\(.name) (\(.size / 1048576 | floor)MB)"' >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          # Download links
-          echo "### Download Links" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Release page:** https://github.com/${{ github.repository }}/releases/tag/v${VERSION}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Download all as ZIP:** https://github.com/${{ github.repository }}/archive/refs/tags/v${VERSION}.zip" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Release Summary
-        run: |
-          echo "============================================"
-          echo "=== Release Created Successfully ==="
-          echo "============================================"
-          echo "Version: v${{ needs.create-release.outputs.version }}"
-          echo "Release URL: https://github.com/${{ github.repository }}/releases/tag/v${{ needs.create-release.outputs.version }}"
-          echo ""
-          echo "Uploaded assets (via tauri-action):"
-          echo "  - macOS: signed DMG installer"
-          echo "  - Windows: signed MSI + NSIS installers"
-          echo ""
-          echo "Next steps:"
-          echo "  1. Review the draft release"
-          echo "  2. Edit release notes if needed"
-          echo "  3. Publish the release when ready"
-          echo "============================================"
-
-          # Add to GitHub Step Summary
-          echo "## Release Created Successfully" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Version:** v${{ needs.create-release.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Release URL:** [View Release](https://github.com/${{ github.repository }}/releases/tag/v${{ needs.create-release.outputs.version }})" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Uploaded Assets" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Platform | Assets |" >> $GITHUB_STEP_SUMMARY
-          echo "|----------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| **macOS** | Signed DMG installer |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Windows** | Signed MSI and NSIS installers |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "1. [Review the draft release](https://github.com/${{ github.repository }}/releases/tag/v${{ needs.create-release.outputs.version }})" >> $GITHUB_STEP_SUMMARY
-          echo "2. Edit release notes if needed" >> $GITHUB_STEP_SUMMARY
-          echo "3. Publish the release when ready" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## Rascunho v${{ needs.preflight.outputs.version }} criado"
+            echo ""
+            echo "Os quatro alvos e o latest.json foram anexados ao rascunho."
+            echo "Revise os instaladores e as assinaturas do atualizador antes de publicar."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -2,7 +2,7 @@ use crate::database::models::{Setting, TranscriptSetting};
 use crate::summary::CustomOpenAIConfig;
 use sqlx::SqlitePool;
 
-const KEYRING_SERVICE: &str = "ai.empathy.app";
+const KEYRING_SERVICE: &str = "ai.empathy.desktop";
 
 fn keyring_account(kind: &str, provider: &str) -> String {
     format!("{}:{}", kind, provider.trim().to_ascii_lowercase())
