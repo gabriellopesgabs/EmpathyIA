@@ -616,7 +616,7 @@ impl SummaryService {
                 } else {
                     info!("Summary saved successfully for meeting_id: {}", meeting_id);
 
-                    // Real-time Obsidian Vault Sync: Update the vault note with the generated summary
+                    // Optional external Markdown workspace: update the portable note with the summary.
                     if let Ok(prefs) =
                         crate::audio::recording_preferences::load_recording_preferences(&app).await
                     {
@@ -668,14 +668,15 @@ impl SummaryService {
                                     if let Err(e) = crate::audio::obsidian::save_to_obsidian_vault(
                                         vault_path,
                                         &meeting.title,
+                                        &meeting.created_at,
                                         &md_content,
                                     ) {
                                         warn!(
-                                            "Failed to update Obsidian vault note with summary: {}",
+                                            "Failed to update external Markdown note with summary: {}",
                                             e
                                         );
                                     } else {
-                                        info!("Successfully updated Obsidian vault note with final summary");
+                                        info!("Successfully updated external Markdown note with final summary");
                                     }
                                 }
                             }

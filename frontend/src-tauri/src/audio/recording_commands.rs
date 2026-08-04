@@ -296,7 +296,7 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
                     speaker: update.speaker.clone(),
                 };
 
-                // Save to Obsidian in real-time if path is configured
+                // Mirror to the optional external Markdown workspace in real time.
                 if let Some(ref vault_path) = obsidian_vault_path_clone {
                     if let Err(e) = crate::audio::obsidian::append_transcript_to_obsidian(
                         vault_path,
@@ -306,7 +306,10 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
                         &update.text,
                         &update.timestamp,
                     ) {
-                        warn!("Failed to sync transcript chunk to Obsidian: {}", e);
+                        warn!(
+                            "Failed to sync transcript chunk to external Markdown workspace: {}",
+                            e
+                        );
                     }
                 }
 
@@ -494,7 +497,7 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
                     speaker: update.speaker.clone(),
                 };
 
-                // Save to Obsidian in real-time if path is configured
+                // Mirror to the optional external Markdown workspace in real time.
                 if let Some(ref vault_path) = obsidian_vault_path_clone {
                     if let Err(e) = crate::audio::obsidian::append_transcript_to_obsidian(
                         vault_path,
@@ -504,7 +507,10 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
                         &update.text,
                         &update.timestamp,
                     ) {
-                        warn!("Failed to sync transcript chunk to Obsidian: {}", e);
+                        warn!(
+                            "Failed to sync transcript chunk to external Markdown workspace: {}",
+                            e
+                        );
                     }
                 }
 

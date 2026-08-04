@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "EmpathyIA Web Clipper",
+  "version": "0.1.0",
+  "description": "Captura contexto da web como Markdown portável para o EmpathyIA.",
+  "permissions": ["activeTab", "scripting", "downloads"],
+  "action": {
+    "default_title": "Capturar para o EmpathyIA",
+    "default_popup": "popup.html"
+  }
+}

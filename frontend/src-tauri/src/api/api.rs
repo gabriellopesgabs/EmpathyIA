@@ -1631,8 +1631,13 @@ pub async fn api_export_to_obsidian<R: Runtime>(
 
     // 6. Generate and save
     let md_content = crate::audio::obsidian::generate_obsidian_markdown(&export_data);
-    crate::audio::obsidian::save_to_obsidian_vault(&vault_path, &meeting.title, &md_content)
-        .map_err(|e| format!("Failed to export to Obsidian: {}", e))?;
+    crate::audio::obsidian::save_to_obsidian_vault(
+        &vault_path,
+        &meeting.title,
+        &meeting.created_at,
+        &md_content,
+    )
+    .map_err(|e| format!("Failed to export to the external Markdown workspace: {}", e))?;
 
     Ok(())
 }

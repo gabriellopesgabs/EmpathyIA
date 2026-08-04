@@ -16,6 +16,8 @@ import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover
 import { LanguagePickerPopover } from '@/components/LanguagePickerPopover';
 import { useRecentLanguages } from '@/hooks/useRecentLanguages';
 import { labelForCode } from '@/lib/summary-languages';
+import { RelatedMeetings } from './RelatedMeetings';
+import { MeetingPropertiesEditor } from './MeetingPropertiesEditor';
 import {
   readMeetingSummaryLanguage,
   saveMeetingSummaryLanguage,
@@ -305,6 +307,7 @@ export function SummaryPanel({
             </div>
           </div>
         )}
+        <MeetingPropertiesEditor meetingId={meeting.id} />
       </div>
 
       {isSummaryLoading ? (
@@ -431,6 +434,7 @@ export function SummaryPanel({
               }}
             />
           </div>
+          <RelatedMeetings meetingId={meeting.id} />
           {summaryStatus !== 'idle' && (
             <div className={`mt-4 p-4 rounded-lg ${summaryStatus === 'error' ? 'bg-red-100 text-red-700' :
               summaryStatus === 'completed' ? 'bg-green-100 text-green-700' :

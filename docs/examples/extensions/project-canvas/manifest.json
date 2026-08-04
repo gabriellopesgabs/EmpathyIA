@@ -1,0 +1,10 @@
+{
+  "id": "project-canvas",
+  "name": "Canvas do EmpathyIA",
+  "description": "Gera um JSON Canvas para as reuniões do projeto EmpathyIA.",
+  "action": "export_canvas",
+  "config": {
+    "project": "EmpathyIA"
+  },
+  "enabled": false
+}

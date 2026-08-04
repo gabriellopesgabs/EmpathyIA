@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { ChevronDown, ChevronRight, File, Settings, ChevronLeftCircle, ChevronRightCircle, Calendar, StickyNote, Home, Trash2, Mic, Square, Plus, Search, Pencil, NotebookPen, SearchIcon, X, Upload } from 'lucide-react';
+import { ChevronDown, ChevronRight, File, Settings, ChevronLeftCircle, ChevronRightCircle, Calendar, StickyNote, Home, Trash2, Mic, Square, Plus, Search, Pencil, NotebookPen, SearchIcon, X, Upload, Network } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useSidebar } from './SidebarProvider';
 import type { CurrentMeeting } from '@/components/Sidebar/SidebarProvider';
@@ -728,6 +728,16 @@ const Sidebar: React.FC = () => {
                 <span>Home</span>
               </div>
             )}
+            {!isCollapsed && (
+              <div
+                onClick={() => router.push('/knowledge')}
+                className="p-3 text-sm font-medium items-center hover:bg-black/5 dark:hover:bg-white/5 h-10 flex mx-3 mt-1 rounded-lg cursor-pointer text-gray-700 dark:text-gray-300"
+              >
+                <Network className="w-4 h-4 mr-2" strokeWidth={1.5} />
+                <span>Conhecimento</span>
+                <span className="ml-auto text-[10px] text-gray-400">⌘K</span>
+              </div>
+            )}
           </div>
 
           {/* Content area */}
@@ -815,7 +825,7 @@ const Sidebar: React.FC = () => {
             </button>
             <Info isCollapsed={isCollapsed} />
             <div className="w-full flex items-center justify-center px-3 py-1 text-[10px] text-gray-400 dark:text-gray-500">
-              v0.4.0
+              v0.5.0
             </div>
           </div>
         )}

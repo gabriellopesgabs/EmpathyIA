@@ -7,7 +7,7 @@ import { useUpdates } from './UpdateCheckProvider';
 
 
 export function About() {
-    const [currentVersion, setCurrentVersion] = useState<string>('0.4.0');
+    const [currentVersion, setCurrentVersion] = useState<string>('0.5.0');
     const { checkForUpdates, isChecking } = useUpdates();
 
     useEffect(() => {

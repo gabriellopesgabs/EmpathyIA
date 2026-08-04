@@ -20,12 +20,14 @@ pub struct ExportTranscriptSegment {
     pub timestamp: String,
 }
 
-/// Generates an Obsidian-compatible Markdown note with YAML frontmatter
+/// Generates a portable Markdown workspace note with YAML frontmatter.
 pub fn generate_obsidian_markdown(data: &ObsidianExportData) -> String {
     let mut md = String::new();
 
     // 1. YAML Frontmatter
     md.push_str("---\n");
+    md.push_str("empathy_schema: 2\n");
+    md.push_str("type: meeting\n");
     md.push_str(&format!("title: {:?}\n", data.title));
     md.push_str(&format!("date: {}\n", data.date));
 
@@ -38,7 +40,7 @@ pub fn generate_obsidian_markdown(data: &ObsidianExportData) -> String {
 
     md.push_str("tags:\n");
     md.push_str("  - meeting\n");
-    md.push_str("  - mymeet\n");
+    md.push_str("  - empathy\n");
     md.push_str("---\n\n");
 
     // 2. Title Header
@@ -70,35 +72,59 @@ pub fn generate_obsidian_markdown(data: &ObsidianExportData) -> String {
     md
 }
 
-/// Saves the generated Obsidian note to the target vault path
+fn portable_name(value: &str) -> String {
+    let mut output = value
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || matches!(character, '-' | '_') {
+                character
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>();
+    while output.contains("--") {
+        output = output.replace("--", "-");
+    }
+    output.trim_matches('-').chars().take(96).collect()
+}
+
+fn workspace_note_path(root: &Path, title: &str, identity: &str) -> Result<std::path::PathBuf> {
+    let meetings_dir = root.join("EmpathyIA").join("Meetings");
+    std::fs::create_dir_all(&meetings_dir)?;
+    let identity = portable_name(identity);
+    let title = portable_name(title);
+    Ok(meetings_dir.join(format!("{}-{}.md", identity, title)))
+}
+
+/// Saves the generated note to an optional external Markdown workspace.
 pub fn save_to_obsidian_vault(
     vault_dir: &str,
     file_name: &str,
+    identity: &str,
     markdown_content: &str,
 ) -> Result<()> {
     let vault_path = Path::new(vault_dir);
     if !vault_path.exists() {
         return Err(anyhow!(
-            "Target Obsidian vault directory does not exist: {}",
+            "Target external Markdown workspace does not exist: {}",
             vault_dir
         ));
     }
 
-    // Clean filename
-    let cleaned_filename = format!("{}.md", file_name.replace("/", "_").replace("\\", "_"));
-    let dest_file_path = vault_path.join(cleaned_filename);
+    let dest_file_path = workspace_note_path(vault_path, file_name, identity)?;
 
     let mut file = File::create(&dest_file_path)?;
     file.write_all(markdown_content.as_bytes())?;
 
     log::info!(
-        "Successfully exported meeting to Obsidian vault note: {:?}",
+        "Successfully exported meeting to external Markdown workspace: {:?}",
         dest_file_path
     );
     Ok(())
 }
 
-/// Appends a transcript segment in real-time to the Obsidian note.
+/// Appends a transcript segment in real-time to the external workspace note.
 /// Initializes the file with frontmatter if it does not exist.
 pub fn append_transcript_to_obsidian(
     vault_dir: &str,
@@ -111,13 +137,12 @@ pub fn append_transcript_to_obsidian(
     let vault_path = Path::new(vault_dir);
     if !vault_path.exists() {
         return Err(anyhow!(
-            "Target Obsidian vault directory does not exist: {}",
+            "Target external Markdown workspace does not exist: {}",
             vault_dir
         ));
     }
 
-    let cleaned_filename = format!("{}.md", meeting_title.replace("/", "_").replace("\\", "_"));
-    let dest_file_path = vault_path.join(cleaned_filename);
+    let dest_file_path = workspace_note_path(vault_path, meeting_title, meeting_date)?;
 
     let mut is_new = false;
     if !dest_file_path.exists() {
@@ -126,7 +151,6 @@ pub fn append_transcript_to_obsidian(
 
     let mut file = std::fs::OpenOptions::new()
         .create(true)
-        .write(true)
         .append(true)
         .open(&dest_file_path)?;
 
@@ -134,11 +158,13 @@ pub fn append_transcript_to_obsidian(
         // Initialize file with frontmatter and headers
         let mut header = String::new();
         header.push_str("---\n");
+        header.push_str("empathy_schema: 2\n");
+        header.push_str("type: meeting\n");
         header.push_str(&format!("title: {:?}\n", meeting_title));
         header.push_str(&format!("date: {}\n", meeting_date));
         header.push_str("tags:\n");
         header.push_str("  - meeting\n");
-        header.push_str("  - mymeet\n");
+        header.push_str("  - empathy\n");
         header.push_str("---\n\n");
         header.push_str(&format!("# {}\n\n", meeting_title));
         header.push_str("## 📝 Summary\n\n*No summary generated yet.*\n\n");
