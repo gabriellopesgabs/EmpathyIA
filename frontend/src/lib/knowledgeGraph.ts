@@ -95,3 +95,57 @@ export function buildLiveKnowledgeGraph(
 
   return { nodes, edges, truncated: false };
 }
+
+export function buildMarkdownKnowledgeGraph(
+  markdown: string,
+  title = 'Nota',
+): KnowledgeGraph {
+  const segments: Transcript[] = markdown
+    .split(/\n\s*\n/g)
+    .map((block, index) => ({
+      id: `markdown-${index}`,
+      text: block
+        .replace(/^#{1,6}\s+/gm, '')
+        .replace(/^[-*+]\s+(?:\[[ xX]\]\s*)?/gm, '')
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+        .replace(/[*_`>]/g, '')
+        .trim(),
+      timestamp: '',
+      sequence_id: index,
+    }))
+    .filter(segment => segment.text.length > 0);
+  return buildLiveKnowledgeGraph(segments, title);
+}
+
+export function mergeMeetingKnowledgeGraphs(
+  indexed: KnowledgeGraph,
+  semantic: KnowledgeGraph,
+): KnowledgeGraph {
+  const indexedAnchor = indexed.nodes.find(node => node.kind === 'meeting');
+  const semanticRootId = semantic.nodes.find(node => node.kind === 'meeting')?.id;
+  const remap = (id: string) => indexedAnchor && id === semanticRootId ? indexedAnchor.id : id;
+  const nodes = new Map<string, KnowledgeGraphNode>();
+  const edges = new Map<string, KnowledgeGraphEdge>();
+
+  for (const node of [...indexed.nodes, ...semantic.nodes]) {
+    if (indexedAnchor && node.id === semanticRootId) continue;
+    const existing = nodes.get(node.id);
+    nodes.set(node.id, existing ? { ...existing, count: Math.max(existing.count, node.count) } : node);
+  }
+  for (const edge of [...indexed.edges, ...semantic.edges]) {
+    const source = remap(edge.source);
+    const target = remap(edge.target);
+    if (source === target) continue;
+    const id = `${edge.kind}:${source}:${target}`;
+    const existing = edges.get(id);
+    edges.set(id, existing
+      ? { ...existing, weight: Math.max(existing.weight, edge.weight) }
+      : { ...edge, id, source, target });
+  }
+
+  return {
+    nodes: [...nodes.values()],
+    edges: [...edges.values()],
+    truncated: indexed.truncated || semantic.truncated,
+  };
+}

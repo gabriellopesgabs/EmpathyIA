@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { buildLiveKnowledgeGraph } from '@/lib/knowledgeGraph';
+import {
+  buildLiveKnowledgeGraph,
+  buildMarkdownKnowledgeGraph,
+  mergeMeetingKnowledgeGraphs,
+} from '@/lib/knowledgeGraph';
 
 describe('live knowledge graph', () => {
   it('extracts stable topics and recent transcript segments', () => {
@@ -21,5 +25,29 @@ describe('live knowledge graph', () => {
     expect(graph.nodes.some(node => node.id === 'segment:partial' && node.partial)).toBe(true);
     expect(graph.nodes.some(node => node.id === 'segment:empty')).toBe(false);
     expect(graph.edges.some(edge => edge.target === 'segment:partial')).toBe(true);
+  });
+
+  it('builds topics from a written Markdown note', () => {
+    const graph = buildMarkdownKnowledgeGraph(
+      '# Planejamento\n\n## Produto\nPrecisamos revisar o produto e o lançamento.\n\n- [ ] Preparar lançamento',
+      'Planejamento',
+    );
+    expect(graph.nodes[0]).toMatchObject({ kind: 'meeting', label: 'Planejamento' });
+    expect(graph.nodes.some(node => node.id === 'topic:lançamento')).toBe(true);
+    expect(graph.nodes.some(node => node.kind === 'segment')).toBe(true);
+  });
+
+  it('attaches saved transcript topics to the indexed meeting node', () => {
+    const indexed = {
+      nodes: [{ id: 'meeting:file', label: 'Reunião', kind: 'meeting', count: 1 }],
+      edges: [],
+      truncated: false,
+    };
+    const semantic = buildLiveKnowledgeGraph([
+      { id: '1', text: 'produto lançamento', timestamp: '10:00' },
+    ], 'Reunião');
+    const merged = mergeMeetingKnowledgeGraphs(indexed, semantic);
+    expect(merged.nodes.filter(node => node.kind === 'meeting')).toHaveLength(1);
+    expect(merged.edges.some(edge => edge.source === 'meeting:file' && edge.kind === 'topic')).toBe(true);
   });
 });

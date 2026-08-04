@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Clock, Users, Calendar, Tag, ArrowLeft, Save } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Calendar, Tag, ArrowLeft, Save, FileText, Network } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { getStoredNotes, saveNotesToStorage, FreeNote } from '@/components/NotesManager';
+import { KnowledgeGraphView } from '@/components/KnowledgeGraph';
+import { buildMarkdownKnowledgeGraph } from '@/lib/knowledgeGraph';
 
 interface NoteEditorClientProps {
   id: string;
@@ -50,6 +52,8 @@ export function NoteEditorClient({ id }: NoteEditorClientProps) {
   const [note, setNote] = useState<FreeNote | null>(null);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [activeView, setActiveView] = useState<'note' | 'graph'>('note');
+  const noteGraph = useMemo(() => buildMarkdownKnowledgeGraph(content, title || 'Nota'), [content, title]);
 
   useEffect(() => {
     if (!id) return;
@@ -103,8 +107,8 @@ export function NoteEditorClient({ id }: NoteEditorClientProps) {
   }
 
   return (
-    <div className="p-8 max-w-4xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto max-w-6xl space-y-6 p-4 sm:p-8">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <button
           onClick={() => router.push('/')}
           className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
@@ -113,13 +117,35 @@ export function NoteEditorClient({ id }: NoteEditorClientProps) {
           <span>Voltar para Início</span>
         </button>
 
-        <button
-          onClick={handleSave}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-all"
-        >
-          <Save className="w-4 h-4" />
-          <span>Salvar Nota</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-lg border bg-white p-1 dark:bg-slate-900" role="tablist" aria-label="Visualizações da nota">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeView === 'note'}
+              onClick={() => setActiveView('note')}
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm ${activeView === 'note' ? 'bg-gray-100 font-medium dark:bg-slate-800' : 'text-gray-500'}`}
+            >
+              <FileText className="h-4 w-4" /> Nota
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeView === 'graph'}
+              onClick={() => setActiveView('graph')}
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm ${activeView === 'graph' ? 'bg-gray-100 font-medium dark:bg-slate-800' : 'text-gray-500'}`}
+            >
+              <Network className="h-4 w-4" /> Grafo
+            </button>
+          </div>
+          <button
+            onClick={handleSave}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-all"
+          >
+            <Save className="w-4 h-4" />
+            <span className="hidden sm:inline">Salvar Nota</span>
+          </button>
+        </div>
       </div>
 
       <div className="space-y-4">
@@ -145,15 +171,23 @@ export function NoteEditorClient({ id }: NoteEditorClientProps) {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl p-6 shadow-sm">
-        <textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder="Escreva suas notas em Markdown aqui..."
-          rows={18}
-          className="w-full font-mono text-sm bg-transparent resize-y focus:outline-none text-gray-800 dark:text-gray-200"
+      {activeView === 'note' ? (
+        <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl p-4 shadow-sm sm:p-6">
+          <textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            placeholder="Escreva suas notas em Markdown aqui..."
+            rows={18}
+            className="w-full font-mono text-sm bg-transparent resize-y focus:outline-none text-gray-800 dark:text-gray-200"
+          />
+        </div>
+      ) : (
+        <KnowledgeGraphView
+          graph={noteGraph}
+          title="Grafo da nota"
+          subtitle="Temas e trechos derivados localmente do conteúdo Markdown. O grafo acompanha suas edições."
         />
-      </div>
+      )}
     </div>
   );
 }
