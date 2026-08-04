@@ -50,6 +50,22 @@ kind:summary has:task
 
 Também é possível abrir a paleta global com `Cmd/Ctrl + K`.
 
+## Grafos de conhecimento
+
+O Empathy oferece três visualizações conectadas:
+
+- **Transcrição → Dividido** mostra a transcrição em tempo real ao lado dos temas que surgem na
+  conversa. Trechos parciais não entram no grafo e nada adicional é persistido enquanto a pessoa
+  ainda está falando;
+- **Grafo desta reunião**, nos detalhes de uma reunião salva, conecta o arquivo da reunião à
+  transcrição, resumo, projeto, participantes, tags, tarefas e decisões;
+- **Conhecimento → Grafo global** reúne todas as reuniões e seus vínculos derivados do índice.
+
+O grafo usa Canvas 2D, limita automaticamente uma visão muito grande e mantém uma lista navegável
+por teclado como alternativa acessível. Arrastar move a visualização; os botões controlam zoom e
+restauração sem capturar a rolagem do sistema. As posições são determinísticas para reduzir mudanças
+visuais quando novos trechos ou documentos aparecem.
+
 ## Importação e Canvas
 
 O importador copia pastas de Markdown, texto, HTML, VTT/SRT, CSV e JSON para um lote único em `Importados/`. A estrutura

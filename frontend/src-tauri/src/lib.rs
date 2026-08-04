@@ -662,6 +662,7 @@ pub fn run() {
             // Markdown-first knowledge workspace
             knowledge::api_reindex_knowledge,
             knowledge::api_get_knowledge_dashboard,
+            knowledge::api_get_knowledge_graph,
             knowledge::api_search_knowledge,
             knowledge::api_read_knowledge_document,
             knowledge::api_get_related_meetings,
