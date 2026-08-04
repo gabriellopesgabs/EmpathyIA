@@ -140,7 +140,7 @@ export function PreferenceSettings() {
         setRecordingPrefs(updatedPrefs);
       }
     } catch (error) {
-      console.error('Failed to select or save Obsidian vault folder:', error);
+      console.error('Failed to select or save external Markdown workspace:', error);
     }
   };
 
@@ -246,19 +246,22 @@ export function PreferenceSettings() {
             </button>
           </div>
 
-          {/* Obsidian Vault Location */}
+          {/* Optional external Markdown workspace */}
           <div className="p-4 border rounded-lg bg-gray-50">
-            <div className="font-medium mb-2">Obsidian Vault Folder (Real-time Transcription Sync)</div>
+            <div className="font-medium mb-2">External Markdown Workspace (Optional)</div>
             <div className="text-sm text-gray-600 mb-3 break-all font-mono text-xs">
-              {obsidianVaultPath || 'No vault folder configured'}
+              {obsidianVaultPath || 'No external workspace configured'}
             </div>
             <button
               onClick={handleSelectVaultFolder}
               className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
             >
               <FolderOpen className="w-4 h-4" />
-              Configure Vault Folder
+              Configure Markdown Folder
             </button>
+            <p className="mt-2 text-xs text-gray-500">
+              Creates portable notes under EmpathyIA/Meetings. Compatible with Obsidian and other Markdown editors.
+            </p>
           </div>
         </div>
 

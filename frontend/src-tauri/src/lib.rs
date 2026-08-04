@@ -39,6 +39,7 @@ pub mod config;
 pub mod console_utils;
 pub mod database;
 pub mod groq;
+pub mod knowledge;
 pub mod meeting_files;
 pub mod notifications;
 pub mod ollama;
@@ -400,6 +401,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .manage(whisper_engine::parallel_commands::ParallelProcessorState::new())
+        .manage(knowledge::KnowledgeWatcherState::default())
         .manage(Arc::new(RwLock::new(
             None::<notifications::manager::NotificationManager<tauri::Wry>>,
         )) as NotificationManagerState<tauri::Wry>)
@@ -657,6 +659,21 @@ pub fn run() {
             api::test_backend_connection,
             api::debug_backend_connection,
             api::open_external_url,
+            // Markdown-first knowledge workspace
+            knowledge::api_reindex_knowledge,
+            knowledge::api_get_knowledge_dashboard,
+            knowledge::api_search_knowledge,
+            knowledge::api_read_knowledge_document,
+            knowledge::api_get_related_meetings,
+            knowledge::api_get_meeting_properties,
+            knowledge::api_update_meeting_properties,
+            knowledge::api_save_web_context,
+            knowledge::api_import_knowledge_folder,
+            knowledge::api_export_json_canvas,
+            knowledge::api_discover_extensions,
+            knowledge::api_set_extension_enabled,
+            knowledge::api_run_extension,
+            knowledge::api_start_knowledge_watcher,
             // Custom OpenAI commands
             api::api_save_custom_openai_config,
             api::api_get_custom_openai_config,

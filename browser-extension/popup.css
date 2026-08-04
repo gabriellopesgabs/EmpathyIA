@@ -1,0 +1,15 @@
+:root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+body { margin: 0; width: 360px; background: #f7f7f5; color: #202020; }
+main { padding: 16px; }
+h1 { margin: 0; font-size: 20px; }
+p, small { color: #666; font-size: 12px; line-height: 1.4; }
+label { display: block; margin-top: 10px; font-size: 12px; font-weight: 600; }
+input, textarea { box-sizing: border-box; width: 100%; margin-top: 4px; border: 1px solid #d7d7d2; border-radius: 7px; padding: 8px; background: white; color: #202020; font: inherit; font-weight: 400; }
+textarea { resize: vertical; }
+button { width: 100%; margin: 12px 0 8px; border: 0; border-radius: 7px; padding: 9px; background: #2563eb; color: white; font-weight: 600; cursor: pointer; }
+output { display: block; margin-top: 8px; font-size: 12px; color: #166534; }
+@media (prefers-color-scheme: dark) {
+  body { background: #1f1f1f; color: #f5f5f5; }
+  input, textarea { background: #292929; border-color: #444; color: #f5f5f5; }
+  p, small { color: #aaa; }
+}

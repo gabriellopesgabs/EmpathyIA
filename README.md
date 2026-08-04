@@ -35,6 +35,16 @@ Minhas reuniões/
 Os arquivos Markdown são feitos para continuar úteis fora do EmpathyIA e podem ser versionados,
 copiados ou abertos em editores como Obsidian.
 
+## Memória conectada
+
+A área **Conhecimento** transforma os documentos locais em uma memória navegável de projetos,
+pessoas, decisões, tarefas e reuniões relacionadas. Ela inclui busca global (`Cmd/Ctrl + K`),
+monitoramento de edições externas, importação de pastas, captura de contexto da web, exportação
+JSON Canvas e automações declarativas que não executam código de terceiros.
+
+O índice pode ser reconstruído a partir dos arquivos a qualquer momento. Consulte a
+[documentação do workspace de conhecimento](docs/KNOWLEDGE_WORKSPACE.md).
+
 ## Desenvolvimento
 
 Pré-requisitos:

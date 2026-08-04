@@ -24,6 +24,8 @@ import { RecordingPostProcessingProvider } from '@/contexts/RecordingPostProcess
 import { ImportAudioDialog, ImportDropOverlay } from '@/components/ImportAudio'
 import { ImportDialogProvider } from '@/contexts/ImportDialogContext'
 import { isAudioExtension, getAudioFormatsDisplayList } from '@/constants/audioFormats'
+import { GlobalCommandPalette } from '@/components/GlobalCommandPalette'
+import { KnowledgeBootstrap } from '@/components/KnowledgeBootstrap'
 
 
 // Module-level component — stable reference across RootLayout re-renders.
@@ -228,6 +230,8 @@ export default function RootLayout({
                                 <OnboardingFlow onComplete={handleOnboardingComplete} />
                               ) : (
                                 <div className="flex">
+                                  <GlobalCommandPalette />
+                                  <KnowledgeBootstrap />
                                   <Sidebar />
                                   <MainContent>{children}</MainContent>
                                 </div>

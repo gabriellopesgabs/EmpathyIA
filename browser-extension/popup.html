@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>EmpathyIA Web Clipper</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main>
+      <h1>EmpathyIA</h1>
+      <p>Capture o trecho selecionado ou o conteúdo principal da página.</p>
+      <label>Título<input id="title" /></label>
+      <label>Projeto<input id="project" placeholder="Opcional" /></label>
+      <label>Tags<input id="tags" placeholder="pesquisa, pauta" /></label>
+      <label>Conteúdo<textarea id="content" rows="10"></textarea></label>
+      <button id="save">Baixar Markdown</button>
+      <small>Depois, importe a pasta de Downloads em Conhecimento → Importar.</small>
+      <output id="status"></output>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

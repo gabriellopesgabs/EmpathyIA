@@ -61,18 +61,73 @@ pub fn write_meeting_index(
     created_at: &str,
     updated_at: &str,
 ) -> Result<PathBuf> {
+    let path = folder.join(MEETING_FILE);
+    if path.exists() {
+        let existing = fs::read_to_string(&path)
+            .with_context(|| format!("Failed to read {}", path.display()))?;
+        if let Some(rest) = existing.strip_prefix("---\n") {
+            if let Some(end) = rest.find("\n---") {
+                let yaml = &rest[..end];
+                let body = rest
+                    .get(end + 4..)
+                    .unwrap_or_default()
+                    .trim_start_matches('\n');
+                let mut metadata =
+                    serde_yaml::from_str::<serde_yaml::Mapping>(yaml).with_context(|| {
+                        format!("Failed to parse frontmatter in {}", path.display())
+                    })?;
+                let key = |value: &str| serde_yaml::Value::String(value.to_string());
+                metadata.insert(key("empathy_schema"), serde_yaml::Value::Number(2.into()));
+                metadata.insert(key("type"), serde_yaml::Value::String("meeting".into()));
+                metadata.insert(key("id"), serde_yaml::Value::String(meeting_id.into()));
+                metadata.insert(key("title"), serde_yaml::Value::String(title.into()));
+                metadata.insert(
+                    key("created_at"),
+                    serde_yaml::Value::String(created_at.into()),
+                );
+                metadata.insert(
+                    key("updated_at"),
+                    serde_yaml::Value::String(updated_at.into()),
+                );
+                let mut replaced_heading = false;
+                let updated_body = body
+                    .lines()
+                    .map(|line| {
+                        if !replaced_heading && line.starts_with("# ") {
+                            replaced_heading = true;
+                            format!("# {}", title)
+                        } else {
+                            line.to_string()
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                let yaml = serde_yaml::to_string(&metadata)
+                    .context("Failed to serialize meeting frontmatter")?;
+                atomic_write(&path, &format!("---\n{}---\n\n{}\n", yaml, updated_body))?;
+                return Ok(path);
+            }
+        }
+        anyhow::bail!("Existing meeting.md has invalid frontmatter; refusing to overwrite it");
+    }
+
     let content = format!(
         "---\n\
-empathy_schema: 1\n\
-id: {}\n\
-title: {}\n\
-created_at: {}\n\
-updated_at: {}\n\
----\n\n\
-# {}\n\n\
-- [Transcrição](./{})\n\
-- [Resumo](./{})\n\
-- Áudio e outros anexos permanecem nesta pasta.\n",
+    empathy_schema: 2\n\
+    type: meeting\n\
+    id: {}\n\
+    title: {}\n\
+    created_at: {}\n\
+    updated_at: {}\n\
+    project: \"\"\n\
+    participants: []\n\
+    tags: [meeting]\n\
+    status: completed\n\
+    ---\n\n\
+    # {}\n\n\
+    - [Transcrição](./{})\n\
+    - [Resumo](./{})\n\
+    - Áudio e outros anexos permanecem nesta pasta.\n",
         yaml_string(meeting_id),
         yaml_string(title),
         yaml_string(created_at),
@@ -81,7 +136,6 @@ updated_at: {}\n\
         TRANSCRIPT_FILE,
         SUMMARY_FILE,
     );
-    let path = folder.join(MEETING_FILE);
     atomic_write(&path, &content)?;
     Ok(path)
 }
@@ -129,7 +183,7 @@ pub fn write_transcript(
 ) -> Result<PathBuf> {
     let mut content = String::new();
     content.push_str("---\n");
-    content.push_str("empathy_schema: 1\n");
+    content.push_str("empathy_schema: 2\n");
     content.push_str("document: transcript\n");
     if let Some(meeting_id) = meeting_id {
         content.push_str(&format!("meeting_id: {}\n", yaml_string(meeting_id)));
@@ -170,7 +224,7 @@ pub fn write_summary(
     let markdown = summary_markdown(summary).unwrap_or("_Resumo ainda não gerado._");
     let content = format!(
         "---\n\
-empathy_schema: 1\n\
+	empathy_schema: 2\n\
 document: summary\n\
 meeting_id: {}\n\
 title: {}\n\
@@ -263,8 +317,8 @@ pub async fn backfill_missing_markdown(pool: &SqlitePool) -> Result<usize> {
             .with_context(|| format!("Failed to load summary for {}", meeting.id))?
             .flatten();
             if let Some(result) = result {
-                let summary = serde_json::from_str::<Value>(&result)
-                    .unwrap_or_else(|_| Value::String(result));
+                let summary =
+                    serde_json::from_str::<Value>(&result).unwrap_or(Value::String(result));
                 write_summary(
                     folder,
                     &meeting.id,
@@ -328,6 +382,39 @@ mod tests {
         let markdown = fs::read_to_string(dir.path().join(SUMMARY_FILE)).unwrap();
         assert!(markdown.contains("## Decisões"));
         assert!(!markdown.contains("summary_json"));
+    }
+
+    #[test]
+    fn updating_title_preserves_user_owned_properties() {
+        let dir = tempfile::tempdir().unwrap();
+        write_meeting_index(
+            dir.path(),
+            "meeting-1",
+            "Título inicial",
+            "2026-08-02T18:00:00Z",
+            "2026-08-02T18:00:00Z",
+        )
+        .unwrap();
+        let path = dir.path().join(MEETING_FILE);
+        let customized = fs::read_to_string(&path)
+            .unwrap()
+            .replace("project: \"\"", "project: EmpathyIA")
+            .replace("participants: []", "participants: [Gabriel]");
+        fs::write(&path, customized).unwrap();
+
+        write_meeting_index(
+            dir.path(),
+            "meeting-1",
+            "Título atualizado",
+            "2026-08-02T18:00:00Z",
+            "2026-08-03T18:00:00Z",
+        )
+        .unwrap();
+
+        let markdown = fs::read_to_string(path).unwrap();
+        assert!(markdown.contains("title: Título atualizado"));
+        assert!(markdown.contains("project: EmpathyIA"));
+        assert!(markdown.contains("participants:\n- Gabriel"));
     }
 
     #[tokio::test]

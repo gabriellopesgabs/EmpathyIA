@@ -1,0 +1,8 @@
+{
+  "id": "daily-digest",
+  "name": "Digest diário",
+  "description": "Cria um Markdown diário com ações pendentes e decisões recentes.",
+  "action": "create_digest",
+  "config": {},
+  "enabled": false
+}
