@@ -19,11 +19,25 @@ project: "EmpathyIA"
 participants: ["Gabriel", "Maria"]
 tags: [meeting, produto]
 status: completed
+note_origins: [recorded]
 ---
 ```
 
 Campos desconhecidos são preservados quando o EmpathyIA atualiza título ou propriedades. Links
 Markdown padrão são preferidos; Wikilinks podem ser lidos, mas não são necessários.
+
+## Origem das notas
+
+O aplicativo apresenta notas escritas e reuniões gravadas em uma única coleção **Notas**. Os
+ícones indicam a origem do conteúdo:
+
+- círculo com ponto: conteúdo originado de uma gravação ou áudio importado;
+- lápis: nota escrita ou editada manualmente;
+- os dois ícones: uma gravação que também recebeu contribuição humana.
+
+Reuniões novas começam com `note_origins: [recorded]`. Ao editar título, resumo ou propriedades,
+o EmpathyIA acrescenta `written` ao campo, preservando o corpo e os demais campos do `meeting.md`.
+Arquivos antigos sem `note_origins` continuam compatíveis e são tratados como gravados.
 
 ## Índice reconstruível
 

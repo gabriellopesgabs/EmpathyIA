@@ -54,6 +54,82 @@ fn summary_markdown(summary: &Value) -> Option<&str> {
         .or_else(|| summary.as_str())
 }
 
+fn split_meeting_document(content: &str) -> Result<(serde_yaml::Mapping, &str)> {
+    let rest = content
+        .strip_prefix("---\n")
+        .context("meeting.md does not start with YAML frontmatter")?;
+    let end = rest
+        .find("\n---")
+        .context("meeting.md frontmatter is not closed")?;
+    let metadata = serde_yaml::from_str::<serde_yaml::Mapping>(&rest[..end])
+        .context("Failed to parse meeting.md frontmatter")?;
+    let body = rest
+        .get(end + 4..)
+        .unwrap_or_default()
+        .trim_start_matches('\n');
+    Ok((metadata, body))
+}
+
+fn origin_value(origin: &str) -> serde_yaml::Value {
+    serde_yaml::Value::String(origin.to_string())
+}
+
+/// Returns whether a recorded note also contains a user-authored change.
+/// Missing metadata is treated as recorded-only for backwards compatibility.
+pub fn meeting_has_written_content(folder: &Path) -> bool {
+    let Ok(content) = fs::read_to_string(folder.join(MEETING_FILE)) else {
+        return false;
+    };
+    let Ok((metadata, _)) = split_meeting_document(&content) else {
+        return false;
+    };
+    metadata
+        .get(origin_value("note_origins"))
+        .and_then(serde_yaml::Value::as_sequence)
+        .is_some_and(|origins| {
+            origins
+                .iter()
+                .any(|value| value.as_str() == Some("written"))
+        })
+}
+
+/// Marks a recorded note as manually written or edited while preserving all
+/// user-owned Markdown body content and unrelated frontmatter properties.
+pub fn mark_meeting_written(folder: &Path, updated_at: &str) -> Result<()> {
+    let path = folder.join(MEETING_FILE);
+    let content =
+        fs::read_to_string(&path).with_context(|| format!("Failed to read {}", path.display()))?;
+    let (mut metadata, body) = split_meeting_document(&content)?;
+    let mut origins = metadata
+        .get(origin_value("note_origins"))
+        .and_then(serde_yaml::Value::as_sequence)
+        .cloned()
+        .unwrap_or_else(|| vec![origin_value("recorded")]);
+    if !origins
+        .iter()
+        .any(|value| value.as_str() == Some("recorded"))
+    {
+        origins.insert(0, origin_value("recorded"));
+    }
+    if !origins
+        .iter()
+        .any(|value| value.as_str() == Some("written"))
+    {
+        origins.push(origin_value("written"));
+    }
+    metadata.insert(
+        origin_value("note_origins"),
+        serde_yaml::Value::Sequence(origins),
+    );
+    metadata.insert(
+        origin_value("updated_at"),
+        serde_yaml::Value::String(updated_at.to_string()),
+    );
+    let yaml =
+        serde_yaml::to_string(&metadata).context("Failed to serialize meeting.md frontmatter")?;
+    atomic_write(&path, &format!("---\n{}---\n\n{}", yaml, body))
+}
+
 pub fn write_meeting_index(
     folder: &Path,
     meeting_id: &str,
@@ -123,6 +199,7 @@ pub fn write_meeting_index(
     participants: []\n\
     tags: [meeting]\n\
     status: completed\n\
+    note_origins: [recorded]\n\
     ---\n\n\
     # {}\n\n\
     - [Transcrição](./{})\n\
@@ -415,6 +492,33 @@ mod tests {
         assert!(markdown.contains("title: Título atualizado"));
         assert!(markdown.contains("project: EmpathyIA"));
         assert!(markdown.contains("participants:\n- Gabriel"));
+    }
+
+    #[test]
+    fn written_origin_is_persisted_without_replacing_user_content() {
+        let dir = tempfile::tempdir().unwrap();
+        write_meeting_index(
+            dir.path(),
+            "meeting-1",
+            "Reunião",
+            "2026-08-02T18:00:00Z",
+            "2026-08-02T18:00:00Z",
+        )
+        .unwrap();
+        let path = dir.path().join(MEETING_FILE);
+        let custom_body = fs::read_to_string(&path).unwrap().replace(
+            "- Áudio e outros anexos permanecem nesta pasta.",
+            "Meu texto manual.",
+        );
+        atomic_write(&path, &custom_body).unwrap();
+
+        assert!(!meeting_has_written_content(dir.path()));
+        mark_meeting_written(dir.path(), "2026-08-02T19:00:00Z").unwrap();
+
+        let updated = fs::read_to_string(path).unwrap();
+        assert!(meeting_has_written_content(dir.path()));
+        assert!(updated.contains("Meu texto manual."));
+        assert!(updated.contains("- written"));
     }
 
     #[tokio::test]

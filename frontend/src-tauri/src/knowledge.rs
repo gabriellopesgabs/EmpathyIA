@@ -1276,6 +1276,8 @@ pub async fn api_update_meeting_properties(
     temporary
         .persist(&path)
         .map_err(|error| error.error.to_string())?;
+    crate::meeting_files::mark_meeting_written(parent, &Utc::now().to_rfc3339())
+        .map_err(|error| error.to_string())?;
     Ok(())
 }
 

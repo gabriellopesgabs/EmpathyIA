@@ -11,12 +11,16 @@ interface SidebarItem {
   id: string;
   title: string;
   type: 'folder' | 'file';
+  recorded?: boolean;
+  written?: boolean;
   children?: SidebarItem[];
 }
 
 export interface CurrentMeeting {
   id: string;
   title: string;
+  recorded?: boolean;
+  written?: boolean;
 }
 
 // Search result type for transcript search
@@ -86,10 +90,12 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
   const fetchMeetings = React.useCallback(async () => {
     if (serverAddress) {
       try {
-        const meetings = await invoke('api_get_meetings') as Array<{ id: string, title: string }>;
+        const meetings = await invoke('api_get_meetings') as Array<{ id: string, title: string, recorded: boolean, written: boolean }>;
         const transformedMeetings = meetings.map((meeting: any) => ({
           id: meeting.id,
-          title: meeting.title
+          title: meeting.title,
+          recorded: meeting.recorded,
+          written: meeting.written,
         }));
         setMeetings(transformedMeetings);
         Analytics.trackBackendConnection(true);
@@ -116,13 +122,31 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
   const baseItems: SidebarItem[] = [
     {
       id: 'meetings',
-      title: 'Meeting Notes',
+      title: 'Notas',
       type: 'folder' as const,
       children: [
-        ...meetings.map(meeting => ({ id: meeting.id, title: meeting.title, type: 'file' as const }))
+        ...meetings.map(meeting => ({
+          id: meeting.id,
+          title: meeting.title,
+          recorded: meeting.recorded ?? true,
+          written: meeting.written ?? false,
+          type: 'file' as const,
+        }))
       ]
     },
   ];
+
+  useEffect(() => {
+    const markWritten = (event: Event) => {
+      const meetingId = (event as CustomEvent<{ meetingId: string }>).detail?.meetingId;
+      if (!meetingId) return;
+      setMeetings(current => current.map(meeting => (
+        meeting.id === meetingId ? { ...meeting, recorded: true, written: true } : meeting
+      )));
+    };
+    window.addEventListener('meeting-note-written', markWritten);
+    return () => window.removeEventListener('meeting-note-written', markWritten);
+  }, []);
 
 
   const toggleCollapse = () => {

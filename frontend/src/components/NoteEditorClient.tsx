@@ -62,7 +62,7 @@ export function NoteEditorClient({ id }: NoteEditorClientProps) {
         title: 'Nova Nota sem Título',
         createdAt: new Date().toLocaleDateString('pt-BR'),
         updatedAt: new Date().toISOString(),
-        tags: ['Notas Livres'],
+        tags: ['Nota'],
         content: '# Nova Nota\n\nComece a digitar suas ideias...',
       };
     }

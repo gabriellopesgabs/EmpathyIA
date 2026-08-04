@@ -30,6 +30,8 @@ pub struct ApiResponse<T> {
 pub struct Meeting {
     pub id: String,
     pub title: String,
+    pub recorded: bool,
+    pub written: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -345,6 +347,16 @@ pub async fn api_get_meetings<R: Runtime>(
                 .map(|m| Meeting {
                     id: m.id,
                     title: m.title,
+                    recorded: true,
+                    written: m
+                        .folder_path
+                        .as_deref()
+                        .filter(|path| !path.trim().is_empty())
+                        .is_some_and(|path| {
+                            crate::meeting_files::meeting_has_written_content(std::path::Path::new(
+                                path,
+                            ))
+                        }),
                 })
                 .collect();
             Ok(result)
@@ -989,6 +1001,12 @@ pub async fn api_save_meeting_title<R: Runtime>(
                         &meeting.created_at.0.to_rfc3339(),
                         &updated_at,
                     )
+                    .and_then(|_| {
+                        crate::meeting_files::mark_meeting_written(
+                            std::path::Path::new(folder_path),
+                            &updated_at,
+                        )
+                    })
                     .and_then(|_| {
                         crate::meeting_files::update_machine_metadata(
                             std::path::Path::new(folder_path),

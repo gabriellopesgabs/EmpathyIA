@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Plus, StickyNote, Trash2, Calendar, FileText } from 'lucide-react';
+import { Plus, Trash2, Pencil, NotebookPen } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
@@ -36,9 +36,13 @@ export function saveNotesToStorage(notes: FreeNote[]) {
   }
 }
 
-export function NotesManager() {
+export function NotesManager({ searchQuery = '' }: { searchQuery?: string }) {
   const router = useRouter();
   const [notes, setNotes] = useState<FreeNote[]>([]);
+  const normalizedQuery = searchQuery.trim().toLocaleLowerCase('pt-BR');
+  const visibleNotes = normalizedQuery
+    ? notes.filter(note => `${note.title}\n${note.content}`.toLocaleLowerCase('pt-BR').includes(normalizedQuery))
+    : notes;
 
   useEffect(() => {
     setNotes(getStoredNotes());
@@ -51,7 +55,7 @@ export function NotesManager() {
       title: 'Nova Nota sem Título',
       createdAt: new Date().toLocaleDateString('pt-BR'),
       updatedAt: new Date().toISOString(),
-      tags: ['Notas Livres'],
+      tags: ['Nota'],
       content: '# Nova Nota\n\nComece a digitar suas ideias ou conecte uma gravação...',
     };
 
@@ -74,8 +78,8 @@ export function NotesManager() {
     <div className="space-y-2">
       <div className="flex items-center justify-between px-2 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">
         <span className="flex items-center gap-1.5">
-          <StickyNote className="w-3.5 h-3.5 text-amber-500" />
-          <span>Minhas Notas Livres</span>
+          <NotebookPen className="w-3.5 h-3.5 text-gray-500" />
+          <span>Notas</span>
         </span>
         <button
           onClick={handleCreateNewNote}
@@ -87,19 +91,19 @@ export function NotesManager() {
       </div>
 
       <div className="space-y-1">
-        {notes.length === 0 ? (
+        {visibleNotes.length === 0 ? (
           <div className="px-3 py-2 text-xs text-gray-400 italic">
-            Nenhuma nota avulsa criada.
+            {normalizedQuery ? 'Nenhuma nota escrita encontrada.' : 'Nenhuma nota escrita criada.'}
           </div>
         ) : (
-          notes.map((note) => (
+          visibleNotes.map((note) => (
             <div
               key={note.id}
               onClick={() => router.push(`/notes?id=${note.id}`)}
               className="group flex items-center justify-between px-3 py-2 text-xs rounded-lg text-gray-700 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer transition-all"
             >
               <div className="flex items-center gap-2 truncate">
-                <FileText className="w-3.5 h-3.5 text-gray-400 group-hover:text-blue-500 transition-colors flex-shrink-0" />
+                <Pencil className="w-3.5 h-3.5 text-gray-500 group-hover:text-blue-500 transition-colors flex-shrink-0" aria-label="Nota escrita ou editada" />
                 <span className="truncate font-medium">{note.title}</span>
               </div>
 

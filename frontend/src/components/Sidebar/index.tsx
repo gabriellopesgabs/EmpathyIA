@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { ChevronDown, ChevronRight, File, Settings, ChevronLeftCircle, ChevronRightCircle, Calendar, StickyNote, Home, Trash2, Mic, Square, Plus, Search, Pencil, NotebookPen, SearchIcon, X, Upload, Network } from 'lucide-react';
+import { ChevronDown, ChevronRight, Settings, ChevronLeftCircle, ChevronRightCircle, Calendar, StickyNote, Home, Trash2, Mic, Square, Plus, Search, Pencil, NotebookPen, SearchIcon, X, Upload, Network, CircleDot } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useSidebar } from './SidebarProvider';
 import type { CurrentMeeting } from '@/components/Sidebar/SidebarProvider';
@@ -36,6 +36,8 @@ interface SidebarItem {
   id: string;
   title: string;
   type: 'folder' | 'file';
+  recorded?: boolean;
+  written?: boolean;
   children?: SidebarItem[];
 }
 
@@ -391,13 +393,13 @@ const Sidebar: React.FC = () => {
 
       // Update local state
       const updatedMeetings = meetings.map((m: CurrentMeeting) =>
-        m.id === meetingId ? { ...m, title: newTitle } : m
+        m.id === meetingId ? { ...m, title: newTitle, recorded: true, written: true } : m
       );
       setMeetings(updatedMeetings);
 
       // Update current meeting if it's the one being edited
       if (currentMeeting?.id === meetingId) {
-        setCurrentMeeting({ id: meetingId, title: newTitle });
+        setCurrentMeeting({ id: meetingId, title: newTitle, recorded: true, written: true });
       }
 
       // Track the edit
@@ -517,7 +519,7 @@ const Sidebar: React.FC = () => {
               </button>
             </TooltipTrigger>
             <TooltipContent side="right">
-              <p>Meeting Notes</p>
+              <p>Notas</p>
             </TooltipContent>
           </Tooltip>
 
@@ -552,7 +554,7 @@ const Sidebar: React.FC = () => {
     const isExpanded = expandedFolders.has(item.id);
     const paddingLeft = `${depth * 12 + 12}px`;
     const isActive = item.type === 'file' && currentMeeting?.id === item.id;
-    const isMeetingItem = item.id.includes('-') && !item.id.startsWith('intro-call');
+    const isMeetingItem = item.recorded === true;
 
     // Check if this item has a matching transcript snippet
     const matchingResult = isMeetingItem ? findMatchingSnippet(item.id) : null;
@@ -576,8 +578,7 @@ const Sidebar: React.FC = () => {
             } else {
               setCurrentMeeting({ id: item.id, title: item.title });
               const basePath = item.id.startsWith('intro-call') ? '/' :
-                item.id.startsWith('note-') ? `/notes?id=${item.id}` :
-                item.id.includes('-') ? `/meeting-details?id=${item.id}` : `/notes?id=${item.id}`;
+                item.recorded ? `/meeting-details?id=${item.id}` : `/notes?id=${item.id}`;
               router.push(basePath);
             }
           }}
@@ -605,8 +606,11 @@ const Sidebar: React.FC = () => {
             <div className="flex flex-col w-full">
               <div className="flex items-center w-full">
                 {isMeetingItem ? (
-                  <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full mr-2 bg-gray-200/50 dark:bg-gray-800/50">
-                    <File className="w-3.5 h-3.5 text-gray-600 dark:text-gray-400" strokeWidth={1.5} />
+                  <div className="flex-shrink-0 flex items-center gap-1 mr-2 text-gray-500 dark:text-gray-400">
+                    <CircleDot className="w-4 h-4" strokeWidth={1.7} aria-label="Nota gravada" />
+                    {item.written && (
+                      <Pencil className="w-3.5 h-3.5" strokeWidth={1.7} aria-label="Nota escrita ou editada" />
+                    )}
                   </div>
                 ) : (
                   <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full mr-2 bg-blue-100/50 dark:bg-blue-900/50">
@@ -622,7 +626,7 @@ const Sidebar: React.FC = () => {
                         handleEditStart(item.id, item.title);
                       }}
                       className="hover:text-blue-600 dark:hover:text-blue-400 p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/5 flex-shrink-0"
-                      aria-label="Edit meeting title"
+                      aria-label="Editar título da nota"
                     >
                       <Pencil className="w-4 h-4" strokeWidth={1.5} />
                     </button>
@@ -632,7 +636,7 @@ const Sidebar: React.FC = () => {
                         setDeleteModalState({ isOpen: true, itemId: item.id });
                       }}
                       className="hover:text-red-600 dark:hover:text-red-400 p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/5 flex-shrink-0"
-                      aria-label="Delete meeting"
+                      aria-label="Excluir nota"
                     >
                       <Trash2 className="w-4 h-4" strokeWidth={1.5} />
                     </button>
@@ -693,7 +697,7 @@ const Sidebar: React.FC = () => {
 
                 <div className="relative mb-1">
                   <InputGroup >
-                    <InputGroupInput placeholder='Search meeting content...' value={searchQuery}
+                    <InputGroupInput placeholder='Buscar nas notas...' value={searchQuery}
                       onChange={(e) => handleSearchChange(e.target.value)}
                     />
                     <InputGroupAddon>
@@ -743,36 +747,14 @@ const Sidebar: React.FC = () => {
           {/* Content area */}
           <div className="flex-1 flex flex-col min-h-0">
             {renderCollapsedIcons()}
-            {/* Meeting Notes folder header - fixed */}
+            {/* Unified written and recorded notes */}
             {!isCollapsed && (
-              <div className="flex-shrink-0">
-                {filteredSidebarItems.filter(item => item.type === 'folder').map(item => (
-                  <div key={item.id}>
-                    <div
-                      className="flex items-center transition-all duration-150 p-3 text-sm font-semibold h-10 mx-3 mt-3 rounded-lg text-gray-500 dark:text-gray-400"
-                    >
-                      <NotebookPen className="w-4 h-4 mr-2" strokeWidth={1.5} />
-                      <span>{item.title}</span>
-                      {searchQuery && item.id === 'meetings' && isSearching && (
-                        <span className="ml-2 text-xs text-blue-500 animate-pulse">Searching...</span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Scrollable meeting & free note items */}
-            {!isCollapsed && (
-              <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0 space-y-4">
-                <div className="px-3 pt-2">
-                  <NotesManager />
+              <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
+                <div className="px-3 pt-3">
+                  <NotesManager searchQuery={searchQuery} />
                 </div>
 
-                <div>
-                  <div className="px-5 py-1 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Gravadas
-                  </div>
+                <div className="mt-1">
                   {filteredSidebarItems
                     .filter(item => item.type === 'folder' && expandedFolders.has(item.id) && item.children)
                     .map(item => (
@@ -834,7 +816,7 @@ const Sidebar: React.FC = () => {
       {/* Confirmation Modal for Delete */}
       <ConfirmationModal
         isOpen={deleteModalState.isOpen}
-        text="Are you sure you want to delete this meeting? This action cannot be undone."
+        text="Tem certeza que deseja excluir esta nota? Ela será movida para a lixeira recuperável."
         onConfirm={handleDeleteConfirm}
         onCancel={() => setDeleteModalState({ isOpen: false, itemId: null })}
       />
