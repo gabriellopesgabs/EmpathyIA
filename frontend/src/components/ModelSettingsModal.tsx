@@ -843,13 +843,13 @@ export function ModelSettingsModal({
 
       {/* Hardware Benchmark & Recommendation Card */}
       <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-xl p-4 shadow-md border border-slate-700/80 mb-5">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-2">
           <div className="flex items-center gap-2">
             <div className="p-1.5 rounded-lg bg-blue-500/20 text-blue-400">
               <Cpu className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="font-semibold text-sm">Diagnóstico do Hardware do Mac</h4>
+              <h4 className="font-semibold text-sm">Diagnóstico do dispositivo</h4>
               <p className="text-xs text-slate-400">Análise automática de CPU, RAM e Aceleração de GPU</p>
             </div>
           </div>
@@ -857,7 +857,7 @@ export function ModelSettingsModal({
             onClick={runHardwareBenchmark}
             disabled={isTestingHardware}
             size="sm"
-            className="text-xs font-semibold bg-white hover:bg-slate-100 text-slate-900 shadow-sm border border-slate-200"
+            className="self-start text-xs font-semibold bg-white hover:bg-slate-100 text-slate-900 shadow-sm border border-slate-200 sm:self-auto"
           >
             <RefreshCw className={cn("w-3.5 h-3.5 mr-1.5 text-blue-600", isTestingHardware && "animate-spin")} />
             {isTestingHardware ? 'Testando...' : 'Testar Hardware'}
@@ -866,7 +866,7 @@ export function ModelSettingsModal({
 
         {hardwareRec && (
           <div className="mt-3 pt-3 border-t border-slate-700/60 space-y-3">
-            <div className="grid grid-cols-4 gap-2 text-center text-xs">
+            <div className="grid grid-cols-2 gap-2 text-center text-xs sm:grid-cols-4">
               <div className="bg-slate-800/80 p-2 rounded-lg border border-slate-700/40">
                 <span className="text-slate-400 block text-[10px]">CPU Cores</span>
                 <span className="font-bold text-slate-100">{hardwareRec.cpu_cores} núcleos</span>
@@ -876,7 +876,7 @@ export function ModelSettingsModal({
                 <span className="font-bold text-blue-400 truncate block">{hardwareRec.gpu_type}</span>
               </div>
               <div className="bg-slate-800/80 p-2 rounded-lg border border-slate-700/40">
-                <span className="text-slate-400 block text-[10px]">Tier Performance</span>
+                <span className="text-slate-400 block text-[10px]">Desempenho</span>
                 <span className="font-bold text-emerald-400">{hardwareRec.performance_tier}</span>
               </div>
               <div className="bg-slate-800/80 p-2 rounded-lg border border-slate-700/40">

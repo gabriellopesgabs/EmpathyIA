@@ -1,13 +1,6 @@
 "use client";
 
-import { ModelConfig, ModelSettingsModal } from '@/components/ModelSettingsModal';
-import {
-  Dialog,
-  DialogContent,
-  DialogTrigger,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { VisuallyHidden } from "@/components/ui/visually-hidden"
+import { ModelConfig } from '@/components/ModelSettingsModal';
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
 import {
@@ -20,9 +13,10 @@ import { Sparkles, Settings, Loader2, FileText, Check, Square } from 'lucide-rea
 import Analytics from '@/lib/analytics';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
-import { useState, useEffect, useRef, ReactNode } from 'react';
+import { useState, useEffect, useCallback, ReactNode } from 'react';
 import { isOllamaNotInstalledError } from '@/lib/utils';
 import { BuiltInModelInfo } from '@/lib/builtin-ai';
+import { useRouter } from 'next/navigation';
 
 interface SummaryGeneratorButtonGroupProps {
   languageSlot?: ReactNode;
@@ -44,8 +38,6 @@ interface SummaryGeneratorButtonGroupProps {
 
 export function SummaryGeneratorButtonGroup({
   modelConfig,
-  setModelConfig,
-  onSaveModelConfig,
   onGenerateSummary,
   onStopGeneration,
   customPrompt,
@@ -59,25 +51,18 @@ export function SummaryGeneratorButtonGroup({
   onOpenModelSettings,
   languageSlot
 }: SummaryGeneratorButtonGroupProps) {
+  const router = useRouter();
   const [isCheckingModels, setIsCheckingModels] = useState(false);
-  const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
+  const openModelSettings = useCallback(() => {
+    router.push('/settings?tab=summaryModels');
+  }, [router]);
 
-  // Expose the function to open the modal via callback registration
+  // Expose navigation to the dedicated settings page to summary error handlers.
   useEffect(() => {
     if (onOpenModelSettings) {
-      // Register our open dialog function with the parent by calling the callback
-      // This allows the parent to store a reference to this function
-      const openDialog = () => {
-        console.log('📱 Opening model settings dialog via callback');
-        setSettingsDialogOpen(true);
-      };
-
-      // Call the parent's callback with our open function
-      // Note: This assumes onOpenModelSettings accepts a function parameter
-      // We'll need to adjust the signature
-      onOpenModelSettings(openDialog);
+      onOpenModelSettings(openModelSettings);
     }
-  }, [onOpenModelSettings]);
+  }, [onOpenModelSettings, openModelSettings]);
 
   if (!hasTranscripts) {
     return null;
@@ -94,7 +79,7 @@ export function SummaryGeneratorButtonGroup({
           description: 'Please select a model in settings',
           duration: 5000,
         });
-        setSettingsDialogOpen(true);
+        openModelSettings();
         return;
       }
 
@@ -120,7 +105,7 @@ export function SummaryGeneratorButtonGroup({
           description: `Could not find information for model: ${selectedModel}`,
           duration: 5000,
         });
-        setSettingsDialogOpen(true);
+        openModelSettings();
         return;
       }
 
@@ -140,7 +125,7 @@ export function SummaryGeneratorButtonGroup({
           description: `${selectedModel} needs to be downloaded before use. Opening model settings...`,
           duration: 5000,
         });
-        setSettingsDialogOpen(true);
+        openModelSettings();
         return;
       }
 
@@ -149,7 +134,7 @@ export function SummaryGeneratorButtonGroup({
           description: `${selectedModel} file is corrupted. Please delete and re-download.`,
           duration: 7000,
         });
-        setSettingsDialogOpen(true);
+        openModelSettings();
         return;
       }
 
@@ -158,7 +143,7 @@ export function SummaryGeneratorButtonGroup({
           description: status.Error || 'An error occurred with the model',
           duration: 5000,
         });
-        setSettingsDialogOpen(true);
+        openModelSettings();
         return;
       }
 
@@ -167,7 +152,7 @@ export function SummaryGeneratorButtonGroup({
         description: 'The selected model is not ready for use',
         duration: 5000,
       });
-      setSettingsDialogOpen(true);
+      openModelSettings();
 
     } catch (error) {
       console.error('Error checking built-in AI models:', error);
@@ -204,7 +189,7 @@ export function SummaryGeneratorButtonGroup({
           'No Ollama models found. Please download gemma2:2b from Model Settings.',
           { duration: 5000 }
         );
-        setSettingsDialogOpen(true);
+        openModelSettings();
         return;
       }
 
@@ -234,7 +219,7 @@ export function SummaryGeneratorButtonGroup({
           { duration: 5000 }
         );
       }
-      setSettingsDialogOpen(true);
+      openModelSettings();
     } finally {
       setIsCheckingModels(false);
     }
@@ -293,36 +278,16 @@ export function SummaryGeneratorButtonGroup({
 
       {languageSlot}
 
-      {/* Settings button */}
-      <Dialog open={settingsDialogOpen} onOpenChange={setSettingsDialogOpen}>
-        <DialogTrigger asChild>
-          <Button
-            variant="outline"
-            size="sm"
-            title="Summary Settings"
-          >
-            <Settings />
-            <span className="hidden lg:inline">AI Model</span>
-          </Button>
-        </DialogTrigger>
-        <DialogContent
-          aria-describedby={undefined}
-        >
-          <VisuallyHidden>
-            <DialogTitle>Model Settings</DialogTitle>
-          </VisuallyHidden>
-          <ModelSettingsModal
-            onSave={async (config) => {
-              await onSaveModelConfig(config);
-              setSettingsDialogOpen(false);
-            }}
-            modelConfig={modelConfig}
-            setModelConfig={setModelConfig}
-            skipInitialFetch={true}
-            layout="dialog"
-          />
-        </DialogContent>
-      </Dialog>
+      {/* Full-page settings keep model diagnostics and downloads readable. */}
+      <Button
+        variant="outline"
+        size="sm"
+        title="Configurações do modelo de IA"
+        onClick={openModelSettings}
+      >
+        <Settings />
+        <span className="hidden lg:inline">Modelo de IA</span>
+      </Button>
 
       {/* Template selector dropdown */}
       {availableTemplates.length > 0 && (

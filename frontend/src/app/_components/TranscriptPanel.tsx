@@ -54,6 +54,10 @@ export function TranscriptPanel({
     [transcripts]
   );
   const liveGraph = useMemo(() => buildLiveKnowledgeGraph(transcripts, meetingTitle), [meetingTitle, transcripts]);
+  const partialCount = transcripts.filter(transcript => transcript.is_partial).length;
+  const graphStatusLabel = isRecording
+    ? (isPaused ? 'Pausado' : transcripts.length > 0 ? 'Ao vivo' : 'Ouvindo')
+    : isProcessingStop ? 'Processando' : undefined;
 
   useEffect(() => {
     const saved = localStorage.getItem('empathy_live_transcript_view');
@@ -67,7 +71,7 @@ export function TranscriptPanel({
 
   const transcriptContent = (
     <div className="flex min-h-full justify-center pb-20">
-      <div className={viewMode === 'split' ? 'w-full max-w-[750px] px-4' : 'w-2/3 max-w-[750px]'}>
+      <div className={viewMode === 'split' ? 'w-full max-w-[750px] px-2 sm:px-4' : 'w-full max-w-4xl px-3 sm:px-6'}>
         <VirtualizedTranscriptView
           segments={segments}
           isRecording={isRecording}
@@ -155,8 +159,11 @@ export function TranscriptPanel({
             <KnowledgeGraphView
               graph={liveGraph}
               title="Temas da conversa"
-              subtitle={transcripts.length === 0 ? 'Os temas aparecerão conforme a fala for transcrita.' : 'Temas e trechos recentes derivados localmente da transcrição.'}
-              live={isRecording}
+              subtitle={transcripts.length === 0
+                ? 'Os temas aparecerão conforme a fala for transcrita.'
+                : `${transcripts.length} trecho${transcripts.length === 1 ? '' : 's'} recebido${transcripts.length === 1 ? '' : 's'}${partialCount > 0 ? ` · ${partialCount} em processamento` : ''}.`}
+              live={isRecording && !isPaused}
+              statusLabel={graphStatusLabel}
             />
           </div>
         )}

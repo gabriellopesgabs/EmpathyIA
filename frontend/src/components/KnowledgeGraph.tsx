@@ -44,35 +44,36 @@ function prepareGraph(graph: KnowledgeGraph, width: number, height: number): { n
   const primary = selected.filter(node => ['meeting', 'transcript', 'summary', 'note'].includes(node.kind));
   const semantic = selected.filter(node => !['meeting', 'transcript', 'summary', 'note'].includes(node.kind));
 
-  const place = (node: KnowledgeGraphNode, index: number, total: number, radius: number): Point => {
-    const stableOffset = (hash(node.id) % 1000) / 1000 * Math.PI * 2;
-    const angle = stableOffset + (index / Math.max(total, 1)) * Math.PI * 2;
+  const place = (node: KnowledgeGraphNode, radius: number): Point => {
+    const angle = (hash(node.id) % 3600) / 3600 * Math.PI * 2;
+    const radialVariation = 0.82 + ((hash(`${node.id}:radius`) % 360) / 1000);
     const nodeDegree = degree.get(node.id) ?? 1;
     return {
       ...node,
       degree: nodeDegree,
       radius: Math.min(14, 5 + Math.sqrt(Math.max(node.count, nodeDegree))),
-      x: centerX + Math.cos(angle) * radius,
-      y: centerY + Math.sin(angle) * radius,
+      x: centerX + Math.cos(angle) * radius * radialVariation,
+      y: centerY + Math.sin(angle) * radius * radialVariation,
     };
   };
 
   const nodes = [
-    ...primary.map((node, index) => primary.length === 1
-      ? { ...place(node, 0, 1, 0), x: centerX, y: centerY }
-      : place(node, index, primary.length, ring * 0.48)),
-    ...semantic.map((node, index) => place(node, index, semantic.length, ring)),
+    ...primary.map((node, index) => index === 0
+      ? { ...place(node, 0), x: centerX, y: centerY }
+      : place(node, ring * 0.42)),
+    ...semantic.map(node => place(node, node.kind === 'segment' ? ring * 0.66 : ring)),
   ];
   return { nodes, edges: graph.edges.filter(edge => visible.has(edge.source) && visible.has(edge.target)) };
 }
 
 export function KnowledgeGraphView({
-  graph, title, subtitle, live = false, onOpenNode, className = '',
+  graph, title, subtitle, live = false, statusLabel, onOpenNode, className = '',
 }: {
   graph: KnowledgeGraph;
   title: string;
   subtitle?: string;
   live?: boolean;
+  statusLabel?: string;
   onOpenNode?: (node: KnowledgeGraphNode) => void;
   className?: string;
 }) {
@@ -196,7 +197,14 @@ export function KnowledgeGraphView({
     <section className={`overflow-hidden rounded-xl border bg-white shadow-sm dark:bg-gray-900 ${className}`}>
       <div className="flex flex-wrap items-start justify-between gap-3 border-b p-4">
         <div>
-          <h2 className="flex items-center gap-2 font-semibold">{title}{live && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">Ao vivo</span>}</h2>
+          <h2 className="flex items-center gap-2 font-semibold">
+            {title}
+            {(live || statusLabel) && (
+              <span className={`rounded-full px-2 py-0.5 text-xs ${live ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                {statusLabel ?? 'Ao vivo'}
+              </span>
+            )}
+          </h2>
           {subtitle && <p className="mt-1 text-sm text-gray-500">{subtitle}</p>}
         </div>
         <div className="flex gap-1" aria-label="Controles do grafo">

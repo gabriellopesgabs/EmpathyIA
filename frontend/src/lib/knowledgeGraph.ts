@@ -12,6 +12,7 @@ export type KnowledgeGraphNode = {
   meeting_id?: string;
   path?: string;
   count: number;
+  partial?: boolean;
 };
 
 export type KnowledgeGraphEdge = {
@@ -52,11 +53,13 @@ export function buildLiveKnowledgeGraph(
   transcripts: Transcript[],
   meetingTitle = 'Reunião ao vivo',
 ): KnowledgeGraph {
-  const finalTranscripts = transcripts.filter(item => item.text.trim() && !item.is_partial);
+  // Short Whisper chunks are marked as partial while recording. They are still
+  // the best available live evidence and must feed both the transcript and graph.
+  const liveTranscripts = transcripts.filter(item => item.text.trim());
   const frequencies = new Map<string, number>();
   const segmentWords = new Map<string, Set<string>>();
 
-  for (const transcript of finalTranscripts) {
+  for (const transcript of liveTranscripts) {
     const unique = new Set(words(transcript.text));
     segmentWords.set(transcript.id, unique);
     unique.forEach(word => frequencies.set(word, (frequencies.get(word) ?? 0) + 1));
@@ -67,7 +70,7 @@ export function buildLiveKnowledgeGraph(
     .slice(0, 12);
   const topicSet = new Set(topics.map(([topic]) => topic));
   const nodes: KnowledgeGraphNode[] = [{
-    id: 'live-meeting', label: meetingTitle || 'Reunião ao vivo', kind: 'meeting', count: finalTranscripts.length,
+    id: 'live-meeting', label: meetingTitle || 'Reunião ao vivo', kind: 'meeting', count: liveTranscripts.length,
   }];
   const edges: KnowledgeGraphEdge[] = [];
 
@@ -77,10 +80,10 @@ export function buildLiveKnowledgeGraph(
     edges.push({ id: edgeId('live-meeting', id, 'topic'), source: 'live-meeting', target: id, kind: 'topic', weight: count });
   }
 
-  for (const transcript of finalTranscripts.slice(-6)) {
+  for (const transcript of liveTranscripts.slice(-6)) {
     const id = `segment:${transcript.id}`;
     const label = transcript.text.length > 72 ? `${transcript.text.slice(0, 69)}…` : transcript.text;
-    nodes.push({ id, label, kind: 'segment', count: 1 });
+    nodes.push({ id, label, kind: 'segment', count: 1, partial: transcript.is_partial });
     edges.push({ id: edgeId('live-meeting', id, 'segment'), source: 'live-meeting', target: id, kind: 'segment', weight: 1 });
     for (const topic of segmentWords.get(transcript.id) ?? []) {
       if (!topicSet.has(topic)) continue;

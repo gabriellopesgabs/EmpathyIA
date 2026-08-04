@@ -13,12 +13,13 @@ describe('live knowledge graph', () => {
     expect(graph.edges.some(edge => edge.kind === 'mentions')).toBe(true);
   });
 
-  it('does not index partial or empty transcript fragments', () => {
+  it('uses partial live fragments but ignores empty transcript fragments', () => {
     const graph = buildLiveKnowledgeGraph([
       { id: 'partial', text: 'rascunho temporário', timestamp: '10:00', is_partial: true },
       { id: 'empty', text: '   ', timestamp: '10:01' },
     ]);
-    expect(graph.nodes).toHaveLength(1);
-    expect(graph.edges).toHaveLength(0);
+    expect(graph.nodes.some(node => node.id === 'segment:partial' && node.partial)).toBe(true);
+    expect(graph.nodes.some(node => node.id === 'segment:empty')).toBe(false);
+    expect(graph.edges.some(edge => edge.target === 'segment:partial')).toBe(true);
   });
 });
