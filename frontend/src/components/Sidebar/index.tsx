@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { ChevronDown, ChevronRight, Settings, ChevronLeftCircle, ChevronRightCircle, Calendar, StickyNote, Home, Trash2, Mic, Square, Plus, Search, Pencil, NotebookPen, SearchIcon, X, Upload, Network, CircleDot } from 'lucide-react';
+import { Archive, ArchiveRestore, ChevronDown, ChevronRight, Settings, ChevronLeftCircle, ChevronRightCircle, Calendar, StickyNote, Home, Trash2, Mic, Square, Plus, Search, Pencil, NotebookPen, SearchIcon, X, Upload, Network, CircleDot } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useSidebar } from './SidebarProvider';
 import type { CurrentMeeting } from '@/components/Sidebar/SidebarProvider';
@@ -38,6 +38,7 @@ interface SidebarItem {
   type: 'folder' | 'file';
   recorded?: boolean;
   written?: boolean;
+  archived?: boolean;
   children?: SidebarItem[];
 }
 
@@ -339,8 +340,8 @@ const Sidebar: React.FC = () => {
       Analytics.trackMeetingDeleted(itemId);
 
       // Show success toast
-      toast.success("Meeting deleted successfully", {
-        description: "All associated data has been removed"
+      toast.success("Nota removida", {
+        description: "Os arquivos foram enviados para a lixeira recuperável quando disponível."
       });
 
       // If deleting the active meeting, navigate to home
@@ -350,15 +351,40 @@ const Sidebar: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to delete meeting:', error);
-      toast.error("Failed to delete meeting", {
+      toast.error("Não foi possível excluir a nota", {
         description: error instanceof Error ? error.message : String(error)
       });
     }
   };
 
-  const handleDeleteConfirm = () => {
+  const handleArchive = async (itemId: string, archived: boolean) => {
+    try {
+      await invoke('api_set_meeting_archived', { meetingId: itemId, archived });
+      setMeetings(meetings.map((meeting: CurrentMeeting) => (
+        meeting.id === itemId ? { ...meeting, archived } : meeting
+      )));
+      if (archived && currentMeeting?.id === itemId) {
+        setCurrentMeeting({ id: 'intro-call', title: '+ New Call' });
+        router.push('/');
+      }
+      toast.success(archived ? 'Nota arquivada' : 'Nota restaurada');
+    } catch (error) {
+      toast.error(archived ? 'Não foi possível arquivar a nota' : 'Não foi possível restaurar a nota', {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
     if (deleteModalState.itemId) {
-      handleDelete(deleteModalState.itemId);
+      await handleDelete(deleteModalState.itemId);
+    }
+    setDeleteModalState({ isOpen: false, itemId: null });
+  };
+
+  const handleArchiveInstead = async () => {
+    if (deleteModalState.itemId) {
+      await handleArchive(deleteModalState.itemId, true);
     }
     setDeleteModalState({ isOpen: false, itemId: null });
   };
@@ -619,16 +645,30 @@ const Sidebar: React.FC = () => {
                 )}
                 <span className="flex-1 break-words">{item.title}</span>
                 {isMeetingItem && (
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-150">
+                    {!item.archived && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditStart(item.id, item.title);
+                        }}
+                        className="hover:text-blue-600 dark:hover:text-blue-400 p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/5 flex-shrink-0"
+                        aria-label="Editar título da nota"
+                      >
+                        <Pencil className="w-4 h-4" strokeWidth={1.5} />
+                      </button>
+                    )}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleEditStart(item.id, item.title);
+                        void handleArchive(item.id, !item.archived);
                       }}
                       className="hover:text-blue-600 dark:hover:text-blue-400 p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/5 flex-shrink-0"
-                      aria-label="Editar título da nota"
+                      aria-label={item.archived ? 'Restaurar nota' : 'Arquivar nota'}
                     >
-                      <Pencil className="w-4 h-4" strokeWidth={1.5} />
+                      {item.archived
+                        ? <ArchiveRestore className="w-4 h-4" strokeWidth={1.5} />
+                        : <Archive className="w-4 h-4" strokeWidth={1.5} />}
                     </button>
                     <button
                       onClick={(e) => {
@@ -661,6 +701,13 @@ const Sidebar: React.FC = () => {
       </div>
     );
   };
+
+  const visibleRecordedNotes = filteredSidebarItems
+    .filter(item => item.type === 'folder' && item.children)
+    .flatMap(item => item.children ?? []);
+  const activeRecordedNotes = visibleRecordedNotes.filter(item => !item.archived);
+  const archivedRecordedNotes = visibleRecordedNotes.filter(item => item.archived);
+  const pendingDeletedMeeting = meetings.find(meeting => meeting.id === deleteModalState.itemId);
 
   return (
     <div className="fixed top-0 left-0 h-screen z-40">
@@ -751,17 +798,13 @@ const Sidebar: React.FC = () => {
             {!isCollapsed && (
               <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
                 <div className="px-3 pt-3">
-                  <NotesManager searchQuery={searchQuery} />
-                </div>
-
-                <div className="mt-1">
-                  {filteredSidebarItems
-                    .filter(item => item.type === 'folder' && expandedFolders.has(item.id) && item.children)
-                    .map(item => (
-                      <div key={`${item.id}-children`} className="mx-3">
-                        {item.children!.map(child => renderItem(child, 1))}
-                      </div>
-                    ))}
+                  <NotesManager
+                    searchQuery={searchQuery}
+                    activeRecordedCount={activeRecordedNotes.length}
+                    archivedRecordedCount={archivedRecordedNotes.length}
+                    recordedNotes={activeRecordedNotes.map(note => renderItem(note, 1))}
+                    archivedRecordedNotes={archivedRecordedNotes.map(note => renderItem(note, 1))}
+                  />
                 </div>
               </div>
             )}
@@ -816,7 +859,11 @@ const Sidebar: React.FC = () => {
       {/* Confirmation Modal for Delete */}
       <ConfirmationModal
         isOpen={deleteModalState.isOpen}
-        text="Tem certeza que deseja excluir esta nota? Ela será movida para a lixeira recuperável."
+        isArchived={Boolean(pendingDeletedMeeting?.archived)}
+        text={pendingDeletedMeeting?.archived
+          ? 'A nota já está arquivada. Ao excluir, ela sairá do índice e seus arquivos serão enviados para a lixeira recuperável quando disponível.'
+          : 'Você pode arquivar para retirar a nota da lista principal sem perder o conteúdo, ou excluir e enviá-la para a lixeira recuperável.'}
+        onArchive={handleArchiveInstead}
         onConfirm={handleDeleteConfirm}
         onCancel={() => setDeleteModalState({ isOpen: false, itemId: null })}
       />

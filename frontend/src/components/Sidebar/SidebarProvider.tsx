@@ -13,6 +13,7 @@ interface SidebarItem {
   type: 'folder' | 'file';
   recorded?: boolean;
   written?: boolean;
+  archived?: boolean;
   children?: SidebarItem[];
 }
 
@@ -21,6 +22,7 @@ export interface CurrentMeeting {
   title: string;
   recorded?: boolean;
   written?: boolean;
+  archived?: boolean;
 }
 
 // Search result type for transcript search
@@ -90,12 +92,13 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
   const fetchMeetings = React.useCallback(async () => {
     if (serverAddress) {
       try {
-        const meetings = await invoke('api_get_meetings') as Array<{ id: string, title: string, recorded: boolean, written: boolean }>;
+        const meetings = await invoke('api_get_meetings') as Array<{ id: string, title: string, recorded: boolean, written: boolean, archived: boolean }>;
         const transformedMeetings = meetings.map((meeting: any) => ({
           id: meeting.id,
           title: meeting.title,
           recorded: meeting.recorded,
           written: meeting.written,
+          archived: meeting.archived,
         }));
         setMeetings(transformedMeetings);
         Analytics.trackBackendConnection(true);
@@ -130,6 +133,7 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
           title: meeting.title,
           recorded: meeting.recorded ?? true,
           written: meeting.written ?? false,
+          archived: meeting.archived ?? false,
           type: 'file' as const,
         }))
       ]

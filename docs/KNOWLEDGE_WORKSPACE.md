@@ -20,6 +20,7 @@ participants: ["Gabriel", "Maria"]
 tags: [meeting, produto]
 status: completed
 note_origins: [recorded]
+archived: false
 ---
 ```
 
@@ -38,6 +39,15 @@ O aplicativo apresenta notas escritas e reuniões gravadas em uma única coleç�
 Reuniões novas começam com `note_origins: [recorded]`. Ao editar título, resumo ou propriedades,
 o EmpathyIA acrescenta `written` ao campo, preservando o corpo e os demais campos do `meeting.md`.
 Arquivos antigos sem `note_origins` continuam compatíveis e são tratados como gravados.
+
+## Arquivar e excluir
+
+Arquivar é reversível: a nota sai da lista principal, permanece em **Arquivadas** e pode ser
+restaurada. Para reuniões, o estado `archived` é salvo no `meeting.md`, sem mover ou apagar a pasta.
+
+Excluir sempre exige confirmação e o diálogo oferece **Arquivar em vez disso**. A exclusão de uma
+reunião envia sua pasta para `.empathy-trash` quando possível. Notas escritas locais só são removidas
+depois da confirmação explícita; por isso o diálogo avisa quando essa remoção será definitiva.
 
 ## Índice reconstruível
 

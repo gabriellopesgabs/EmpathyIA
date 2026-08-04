@@ -93,6 +93,40 @@ pub fn meeting_has_written_content(folder: &Path) -> bool {
         })
 }
 
+/// Archived notes stay in place and remain indexable; only their active-list
+/// visibility changes. Legacy `status: archived` is also recognized.
+pub fn meeting_is_archived(folder: &Path) -> bool {
+    let Ok(content) = fs::read_to_string(folder.join(MEETING_FILE)) else {
+        return false;
+    };
+    let Ok((metadata, _)) = split_meeting_document(&content) else {
+        return false;
+    };
+    metadata
+        .get(origin_value("archived"))
+        .and_then(serde_yaml::Value::as_bool)
+        .unwrap_or(false)
+        || metadata
+            .get(origin_value("status"))
+            .and_then(serde_yaml::Value::as_str)
+            .is_some_and(|status| status.eq_ignore_ascii_case("archived"))
+}
+
+pub fn set_meeting_archived(folder: &Path, archived: bool, updated_at: &str) -> Result<()> {
+    let path = folder.join(MEETING_FILE);
+    let content =
+        fs::read_to_string(&path).with_context(|| format!("Failed to read {}", path.display()))?;
+    let (mut metadata, body) = split_meeting_document(&content)?;
+    metadata.insert(origin_value("archived"), serde_yaml::Value::Bool(archived));
+    metadata.insert(
+        origin_value("updated_at"),
+        serde_yaml::Value::String(updated_at.to_string()),
+    );
+    let yaml =
+        serde_yaml::to_string(&metadata).context("Failed to serialize meeting.md frontmatter")?;
+    atomic_write(&path, &format!("---\n{}---\n\n{}", yaml, body))
+}
+
 /// Marks a recorded note as manually written or edited while preserving all
 /// user-owned Markdown body content and unrelated frontmatter properties.
 pub fn mark_meeting_written(folder: &Path, updated_at: &str) -> Result<()> {
@@ -200,6 +234,7 @@ pub fn write_meeting_index(
     tags: [meeting]\n\
     status: completed\n\
     note_origins: [recorded]\n\
+    archived: false\n\
     ---\n\n\
     # {}\n\n\
     - [Transcrição](./{})\n\
@@ -519,6 +554,36 @@ mod tests {
         assert!(meeting_has_written_content(dir.path()));
         assert!(updated.contains("Meu texto manual."));
         assert!(updated.contains("- written"));
+    }
+
+    #[test]
+    fn archive_state_is_reversible_and_preserves_markdown() {
+        let dir = tempfile::tempdir().unwrap();
+        write_meeting_index(
+            dir.path(),
+            "meeting-1",
+            "Reunião",
+            "2026-08-02T18:00:00Z",
+            "2026-08-02T18:00:00Z",
+        )
+        .unwrap();
+        let path = dir.path().join(MEETING_FILE);
+        let customized = fs::read_to_string(&path)
+            .unwrap()
+            .replace("# Reunião", "# Reunião\n\nTexto preservado");
+        atomic_write(&path, &customized).unwrap();
+
+        set_meeting_archived(dir.path(), true, "2026-08-02T19:00:00Z").unwrap();
+        assert!(meeting_is_archived(dir.path()));
+        assert!(fs::read_to_string(&path)
+            .unwrap()
+            .contains("Texto preservado"));
+
+        set_meeting_archived(dir.path(), false, "2026-08-02T20:00:00Z").unwrap();
+        assert!(!meeting_is_archived(dir.path()));
+        assert!(fs::read_to_string(path)
+            .unwrap()
+            .contains("Texto preservado"));
     }
 
     #[tokio::test]

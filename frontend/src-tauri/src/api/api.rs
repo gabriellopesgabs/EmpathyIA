@@ -32,6 +32,7 @@ pub struct Meeting {
     pub title: String,
     pub recorded: bool,
     pub written: bool,
+    pub archived: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -357,6 +358,13 @@ pub async fn api_get_meetings<R: Runtime>(
                                 path,
                             ))
                         }),
+                    archived: m
+                        .folder_path
+                        .as_deref()
+                        .filter(|path| !path.trim().is_empty())
+                        .is_some_and(|path| {
+                            crate::meeting_files::meeting_is_archived(std::path::Path::new(path))
+                        }),
                 })
                 .collect();
             Ok(result)
@@ -366,6 +374,31 @@ pub async fn api_get_meetings<R: Runtime>(
             Err(e.to_string())
         }
     }
+}
+
+#[tauri::command]
+pub async fn api_set_meeting_archived<R: Runtime>(
+    _app: AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+    archived: bool,
+) -> Result<serde_json::Value, String> {
+    let meeting = MeetingsRepository::get_meeting_metadata(state.db_manager.pool(), &meeting_id)
+        .await
+        .map_err(|error| format!("Failed to load note: {error}"))?
+        .ok_or_else(|| "Nota não encontrada".to_string())?;
+    let folder_path = meeting
+        .folder_path
+        .as_deref()
+        .filter(|path| !path.trim().is_empty())
+        .ok_or_else(|| "Esta nota não possui uma pasta Markdown para arquivamento".to_string())?;
+    crate::meeting_files::set_meeting_archived(
+        std::path::Path::new(folder_path),
+        archived,
+        &chrono::Utc::now().to_rfc3339(),
+    )
+    .map_err(|error| format!("Não foi possível atualizar o arquivo da nota: {error}"))?;
+    Ok(serde_json::json!({ "archived": archived }))
 }
 
 #[tauri::command]
