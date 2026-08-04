@@ -15,6 +15,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { KnowledgeGraphView } from '@/components/KnowledgeGraph';
+import type { KnowledgeGraph, KnowledgeGraphNode } from '@/lib/knowledgeGraph';
 
 type CountedValue = { value: string; count: number };
 type KnowledgeTask = {
@@ -91,6 +93,8 @@ export default function KnowledgePage() {
   const [activeTab, setActiveTab] = useState('overview');
   const [extensions, setExtensions] = useState<KnowledgeExtension[]>([]);
   const [preview, setPreview] = useState<KnowledgeDocumentContent | null>(null);
+  const [graph, setGraph] = useState<KnowledgeGraph>({ nodes: [], edges: [], truncated: false });
+  const [graphLoading, setGraphLoading] = useState(true);
   const [context, setContext] = useState({ title: '', url: '', project: '', tags: '', content: '' });
 
   const loadDashboard = useCallback(async () => {
@@ -98,12 +102,21 @@ export default function KnowledgePage() {
     setDashboard(data);
   }, []);
 
+  const loadGraph = useCallback(async () => {
+    setGraphLoading(true);
+    try {
+      setGraph(await invoke<KnowledgeGraph>('api_get_knowledge_graph', { meetingId: null }));
+    } finally {
+      setGraphLoading(false);
+    }
+  }, []);
+
   const reindex = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
     try {
       const result = await invoke<ReindexResult>('api_reindex_knowledge');
       setLastIndex(result);
-      await loadDashboard();
+      await Promise.all([loadDashboard(), loadGraph()]);
       if (!quiet) {
         toast.success('Biblioteca Markdown atualizada', {
           description: `${result.documents} documentos, ${result.tasks} tarefas e ${result.decisions} decisões.`,
@@ -114,7 +127,7 @@ export default function KnowledgePage() {
     } finally {
       setLoading(false);
     }
-  }, [loadDashboard]);
+  }, [loadDashboard, loadGraph]);
 
   useEffect(() => {
     try {
@@ -125,13 +138,13 @@ export default function KnowledgePage() {
   }, []);
 
   useEffect(() => {
-    const refresh = () => loadDashboard().finally(() => setLoading(false));
+    const refresh = () => Promise.all([loadDashboard(), loadGraph()]).finally(() => setLoading(false));
     refresh();
     window.addEventListener('knowledge-index-updated', refresh);
     return () => {
       window.removeEventListener('knowledge-index-updated', refresh);
     };
-  }, [loadDashboard]);
+  }, [loadDashboard, loadGraph]);
 
   useEffect(() => {
     const timer = setTimeout(async () => {
@@ -251,6 +264,19 @@ export default function KnowledgePage() {
     }
   };
 
+  const openGraphNode = async (node: KnowledgeGraphNode) => {
+    if (node.meeting_id) {
+      router.push(`/meeting-details?id=${node.meeting_id}`);
+      return;
+    }
+    if (!node.path) return;
+    try {
+      setPreview(await invoke<KnowledgeDocumentContent>('api_read_knowledge_document', { path: node.path }));
+    } catch (error) {
+      toast.error('Não foi possível abrir o documento', { description: String(error) });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 px-6 py-8 text-gray-900 dark:bg-gray-950 dark:text-gray-100">
       <div className="mx-auto max-w-7xl">
@@ -269,6 +295,7 @@ export default function KnowledgePage() {
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="mb-5 flex h-auto flex-wrap justify-start">
             <TabsTrigger value="overview">Visão geral</TabsTrigger>
+            <TabsTrigger value="graph">Grafo global</TabsTrigger>
             <TabsTrigger value="search">Busca global</TabsTrigger>
             <TabsTrigger value="capture">Capturar contexto</TabsTrigger>
             <TabsTrigger value="tools">Importar e exportar</TabsTrigger>
@@ -316,6 +343,19 @@ export default function KnowledgePage() {
                 </div>
               </section>
             </div>
+          </TabsContent>
+
+          <TabsContent value="graph">
+            {graphLoading ? (
+              <div className="flex min-h-96 items-center justify-center"><Loader2 className="animate-spin text-gray-400" /></div>
+            ) : (
+              <KnowledgeGraphView
+                graph={graph}
+                title="Mapa de todas as reuniões"
+                subtitle="Reuniões, transcrições, resumos, projetos, pessoas, tags, tarefas e decisões. Selecione um nó para ver suas conexões."
+                onOpenNode={openGraphNode}
+              />
+            )}
           </TabsContent>
 
           <TabsContent value="search">

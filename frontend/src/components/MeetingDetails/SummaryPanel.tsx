@@ -18,6 +18,7 @@ import { useRecentLanguages } from '@/hooks/useRecentLanguages';
 import { labelForCode } from '@/lib/summary-languages';
 import { RelatedMeetings } from './RelatedMeetings';
 import { MeetingPropertiesEditor } from './MeetingPropertiesEditor';
+import { MeetingKnowledgeGraph } from './MeetingKnowledgeGraph';
 import {
   readMeetingSummaryLanguage,
   saveMeetingSummaryLanguage,
@@ -434,6 +435,7 @@ export function SummaryPanel({
               }}
             />
           </div>
+          <MeetingKnowledgeGraph meetingId={meeting.id} />
           <RelatedMeetings meetingId={meeting.id} />
           {summaryStatus !== 'idle' && (
             <div className={`mt-4 p-4 rounded-lg ${summaryStatus === 'error' ? 'bg-red-100 text-red-700' :

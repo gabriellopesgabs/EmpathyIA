@@ -2,14 +2,18 @@ import { VirtualizedTranscriptView } from '@/components/VirtualizedTranscriptVie
 import { PermissionWarning } from '@/components/PermissionWarning';
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
-import { Copy, GlobeIcon } from 'lucide-react';
+import { Columns2, Copy, FileText, GlobeIcon, Network } from 'lucide-react';
 import { useTranscripts } from '@/contexts/TranscriptContext';
 import { useConfig } from '@/contexts/ConfigContext';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
 import { usePermissionCheck } from '@/hooks/usePermissionCheck';
 import { ModalType } from '@/hooks/useModalState';
 import { useIsLinux } from '@/hooks/usePlatform';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { KnowledgeGraphView } from '@/components/KnowledgeGraph';
+import { buildLiveKnowledgeGraph } from '@/lib/knowledgeGraph';
+
+type TranscriptViewMode = 'transcript' | 'split' | 'graph';
 
 /**
  * TranscriptPanel Component
@@ -31,11 +35,12 @@ export function TranscriptPanel({
   showModal
 }: TranscriptPanelProps) {
   // Contexts
-  const { transcripts, transcriptContainerRef, copyTranscript } = useTranscripts();
+  const { transcripts, transcriptContainerRef, copyTranscript, meetingTitle } = useTranscripts();
   const { transcriptModelConfig } = useConfig();
   const { isRecording, isPaused } = useRecordingState();
   const { checkPermissions, isChecking, hasSystemAudio, hasMicrophone } = usePermissionCheck();
   const isLinux = useIsLinux();
+  const [viewMode, setViewMode] = useState<TranscriptViewMode>('transcript');
 
   // Convert transcripts to segments for virtualized view
   const segments = useMemo(() =>
@@ -48,9 +53,36 @@ export function TranscriptPanel({
     })),
     [transcripts]
   );
+  const liveGraph = useMemo(() => buildLiveKnowledgeGraph(transcripts, meetingTitle), [meetingTitle, transcripts]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('empathy_live_transcript_view');
+    if (saved === 'transcript' || saved === 'split' || saved === 'graph') setViewMode(saved);
+  }, []);
+
+  const changeView = (mode: TranscriptViewMode) => {
+    setViewMode(mode);
+    localStorage.setItem('empathy_live_transcript_view', mode);
+  };
+
+  const transcriptContent = (
+    <div className="flex min-h-full justify-center pb-20">
+      <div className={viewMode === 'split' ? 'w-full max-w-[750px] px-4' : 'w-2/3 max-w-[750px]'}>
+        <VirtualizedTranscriptView
+          segments={segments}
+          isRecording={isRecording}
+          isPaused={isPaused}
+          isProcessing={isProcessingStop}
+          isStopping={isStopping}
+          enableStreaming={isRecording}
+          showConfidence={true}
+        />
+      </div>
+    </div>
+  );
 
   return (
-    <div ref={transcriptContainerRef} className="w-full border-r border-gray-200 bg-white flex flex-col overflow-y-auto">
+    <div className="w-full border-r border-gray-200 bg-white flex flex-col overflow-hidden">
       {/* Title area - Sticky header */}
       <div className="sticky top-0 z-10 bg-white p-4 border-gray-200">
         <div className="flex flex-col space-y-3">
@@ -84,6 +116,17 @@ export function TranscriptPanel({
                   </Button>
                 }
               </ButtonGroup>
+              <ButtonGroup aria-label="Visualização da reunião ao vivo">
+                <Button variant={viewMode === 'transcript' ? 'secondary' : 'outline'} size="sm" onClick={() => changeView('transcript')} title="Transcrição">
+                  <FileText /><span className="hidden lg:inline">Transcrição</span>
+                </Button>
+                <Button variant={viewMode === 'split' ? 'secondary' : 'outline'} size="sm" onClick={() => changeView('split')} title="Transcrição e grafo">
+                  <Columns2 /><span className="hidden lg:inline">Dividido</span>
+                </Button>
+                <Button variant={viewMode === 'graph' ? 'secondary' : 'outline'} size="sm" onClick={() => changeView('graph')} title="Grafo ao vivo">
+                  <Network /><span className="hidden lg:inline">Grafo</span>
+                </Button>
+              </ButtonGroup>
             </div>
           </div>
         </div>
@@ -101,21 +144,22 @@ export function TranscriptPanel({
         </div>
       )}
 
-      {/* Transcript content */}
-      <div className="pb-20">
-        <div className="flex justify-center">
-          <div className="w-2/3 max-w-[750px]">
-            <VirtualizedTranscriptView
-              segments={segments}
-              isRecording={isRecording}
-              isPaused={isPaused}
-              isProcessing={isProcessingStop}
-              isStopping={isStopping}
-              enableStreaming={isRecording}
-              showConfidence={true}
+      <div className={`min-h-0 flex-1 ${viewMode === 'split' ? 'grid grid-rows-2 lg:grid-cols-2 lg:grid-rows-1' : ''}`}>
+        {viewMode !== 'graph' && (
+          <div ref={transcriptContainerRef} className="h-full overflow-y-auto">
+            {transcriptContent}
+          </div>
+        )}
+        {viewMode !== 'transcript' && (
+          <div className="h-full overflow-y-auto border-l bg-slate-50 p-3 dark:bg-gray-950">
+            <KnowledgeGraphView
+              graph={liveGraph}
+              title="Temas da conversa"
+              subtitle={transcripts.length === 0 ? 'Os temas aparecerão conforme a fala for transcrita.' : 'Temas e trechos recentes derivados localmente da transcrição.'}
+              live={isRecording}
             />
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

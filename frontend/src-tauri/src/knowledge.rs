@@ -98,6 +98,32 @@ pub struct KnowledgeDocument {
     pub modified_ms: i64,
 }
 
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct KnowledgeGraphNode {
+    pub id: String,
+    pub label: String,
+    pub kind: String,
+    pub meeting_id: Option<String>,
+    pub path: Option<String>,
+    pub count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct KnowledgeGraphEdge {
+    pub id: String,
+    pub source: String,
+    pub target: String,
+    pub kind: String,
+    pub weight: usize,
+}
+
+#[derive(Debug, Serialize)]
+pub struct KnowledgeGraph {
+    pub nodes: Vec<KnowledgeGraphNode>,
+    pub edges: Vec<KnowledgeGraphEdge>,
+    pub truncated: bool,
+}
+
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct KnowledgeTask {
     pub id: String,
@@ -534,6 +560,292 @@ fn counted_values(values: impl Iterator<Item = String>) -> Vec<CountedValue> {
             .then(left.value.cmp(&right.value))
     });
     result
+}
+
+fn graph_entity_id(kind: &str, value: &str) -> String {
+    format!("{kind}:{}", stable_hash(&[value]))
+}
+
+fn insert_graph_node(nodes: &mut BTreeMap<String, KnowledgeGraphNode>, node: KnowledgeGraphNode) {
+    nodes
+        .entry(node.id.clone())
+        .and_modify(|existing| existing.count = existing.count.saturating_add(node.count))
+        .or_insert(node);
+}
+
+fn insert_graph_edge(
+    edges: &mut BTreeMap<String, KnowledgeGraphEdge>,
+    source: &str,
+    target: &str,
+    kind: &str,
+    weight: usize,
+) {
+    if source == target {
+        return;
+    }
+    let id = stable_hash(&[source, target, kind]);
+    edges
+        .entry(id.clone())
+        .and_modify(|existing| existing.weight = existing.weight.saturating_add(weight))
+        .or_insert_with(|| KnowledgeGraphEdge {
+            id,
+            source: source.to_string(),
+            target: target.to_string(),
+            kind: kind.to_string(),
+            weight,
+        });
+}
+
+fn build_knowledge_graph(
+    documents: &[KnowledgeDocument],
+    link_rows: &[(String, String)],
+    tasks: &[KnowledgeTask],
+    decisions: &[KnowledgeDecision],
+    meeting_filter: Option<&str>,
+) -> KnowledgeGraph {
+    const GLOBAL_DOCUMENT_LIMIT: usize = 240;
+    const MEETING_DOCUMENT_LIMIT: usize = 120;
+    const DETAIL_LIMIT: usize = 80;
+
+    let document_limit = if meeting_filter.is_some() {
+        MEETING_DOCUMENT_LIMIT
+    } else {
+        GLOBAL_DOCUMENT_LIMIT
+    };
+    let matching_documents = documents
+        .iter()
+        .filter(|document| {
+            meeting_filter
+                .is_none_or(|meeting_id| document.meeting_id.as_deref() == Some(meeting_id))
+        })
+        .collect::<Vec<_>>();
+    let truncated = matching_documents.len() > document_limit;
+    let selected_documents = matching_documents
+        .into_iter()
+        .take(document_limit)
+        .collect::<Vec<_>>();
+
+    let mut nodes = BTreeMap::<String, KnowledgeGraphNode>::new();
+    let mut edges = BTreeMap::<String, KnowledgeGraphEdge>::new();
+    let mut document_nodes = BTreeMap::<String, String>::new();
+    let mut meeting_anchors = BTreeMap::<String, String>::new();
+
+    for document in &selected_documents {
+        let id = graph_entity_id("document", &document.path);
+        document_nodes.insert(document.path.clone(), id.clone());
+        insert_graph_node(
+            &mut nodes,
+            KnowledgeGraphNode {
+                id: id.clone(),
+                label: document.title.clone(),
+                kind: document.kind.clone(),
+                meeting_id: document.meeting_id.clone(),
+                path: Some(document.path.clone()),
+                count: 1,
+            },
+        );
+        if let Some(meeting_id) = &document.meeting_id {
+            let anchor = meeting_anchors
+                .entry(meeting_id.clone())
+                .or_insert_with(|| id.clone());
+            if document.kind == "meeting" {
+                *anchor = id;
+            }
+        }
+    }
+
+    for document in &selected_documents {
+        let Some(document_id) = document_nodes.get(&document.path) else {
+            continue;
+        };
+        let anchor = document
+            .meeting_id
+            .as_ref()
+            .and_then(|meeting_id| meeting_anchors.get(meeting_id))
+            .cloned()
+            .unwrap_or_else(|| document_id.clone());
+        if &anchor != document_id {
+            insert_graph_edge(&mut edges, &anchor, document_id, "contains", 2);
+        }
+
+        if let Some(project) = document
+            .project
+            .as_deref()
+            .filter(|value| !value.trim().is_empty())
+        {
+            let project_id = graph_entity_id("project", project);
+            insert_graph_node(
+                &mut nodes,
+                KnowledgeGraphNode {
+                    id: project_id.clone(),
+                    label: project.to_string(),
+                    kind: "project".into(),
+                    meeting_id: None,
+                    path: None,
+                    count: 1,
+                },
+            );
+            insert_graph_edge(&mut edges, &anchor, &project_id, "project", 3);
+        }
+        for participant in serde_json::from_str::<Vec<String>>(&document.participants_json)
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|value| !value.trim().is_empty())
+        {
+            let participant_id = graph_entity_id("person", &participant);
+            insert_graph_node(
+                &mut nodes,
+                KnowledgeGraphNode {
+                    id: participant_id.clone(),
+                    label: participant,
+                    kind: "person".into(),
+                    meeting_id: None,
+                    path: None,
+                    count: 1,
+                },
+            );
+            insert_graph_edge(&mut edges, &anchor, &participant_id, "participant", 2);
+        }
+        for tag in serde_json::from_str::<Vec<String>>(&document.tags_json)
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|value| !value.trim().is_empty())
+        {
+            let tag_id = graph_entity_id("tag", &tag);
+            insert_graph_node(
+                &mut nodes,
+                KnowledgeGraphNode {
+                    id: tag_id.clone(),
+                    label: tag,
+                    kind: "tag".into(),
+                    meeting_id: None,
+                    path: None,
+                    count: 1,
+                },
+            );
+            insert_graph_edge(&mut edges, &anchor, &tag_id, "tag", 1);
+        }
+    }
+
+    for (source_path, target) in link_rows {
+        let Some(source_id) = document_nodes.get(source_path) else {
+            continue;
+        };
+        if let Some((_target_path, target_id)) = document_nodes
+            .iter()
+            .find(|(path, _)| link_targets_document(source_path, target, path))
+        {
+            insert_graph_edge(&mut edges, source_id, target_id, "link", 4);
+        }
+    }
+
+    for task in tasks
+        .iter()
+        .filter(|task| !task.completed)
+        .filter(|task| meeting_filter.is_none_or(|value| task.meeting_id.as_deref() == Some(value)))
+        .take(DETAIL_LIMIT)
+    {
+        let Some(anchor) = task
+            .meeting_id
+            .as_ref()
+            .and_then(|meeting_id| meeting_anchors.get(meeting_id))
+            .cloned()
+            .or_else(|| document_nodes.get(&task.document_path).cloned())
+        else {
+            continue;
+        };
+        let task_id = format!("task:{}", task.id);
+        insert_graph_node(
+            &mut nodes,
+            KnowledgeGraphNode {
+                id: task_id.clone(),
+                label: task.text.clone(),
+                kind: "task".into(),
+                meeting_id: task.meeting_id.clone(),
+                path: Some(task.document_path.clone()),
+                count: 1,
+            },
+        );
+        insert_graph_edge(&mut edges, &anchor, &task_id, "task", 2);
+    }
+
+    for decision in decisions
+        .iter()
+        .filter(|decision| {
+            meeting_filter.is_none_or(|value| decision.meeting_id.as_deref() == Some(value))
+        })
+        .take(DETAIL_LIMIT)
+    {
+        let Some(anchor) = decision
+            .meeting_id
+            .as_ref()
+            .and_then(|meeting_id| meeting_anchors.get(meeting_id))
+            .cloned()
+            .or_else(|| document_nodes.get(&decision.document_path).cloned())
+        else {
+            continue;
+        };
+        let decision_id = format!("decision:{}", decision.id);
+        insert_graph_node(
+            &mut nodes,
+            KnowledgeGraphNode {
+                id: decision_id.clone(),
+                label: decision.text.clone(),
+                kind: "decision".into(),
+                meeting_id: decision.meeting_id.clone(),
+                path: Some(decision.document_path.clone()),
+                count: 1,
+            },
+        );
+        insert_graph_edge(&mut edges, &anchor, &decision_id, "decision", 3);
+    }
+
+    KnowledgeGraph {
+        nodes: nodes.into_values().collect(),
+        edges: edges.into_values().collect(),
+        truncated,
+    }
+}
+
+#[tauri::command]
+pub async fn api_get_knowledge_graph(
+    state: State<'_, AppState>,
+    meeting_id: Option<String>,
+) -> Result<KnowledgeGraph, String> {
+    let documents = sqlx::query_as::<_, KnowledgeDocument>(
+        "SELECT path, meeting_id, kind, title, project, participants_json, tags_json, status, modified_ms
+         FROM knowledge_documents ORDER BY modified_ms DESC",
+    )
+    .fetch_all(state.db_manager.pool())
+    .await
+    .map_err(|error| error.to_string())?;
+    let link_rows = sqlx::query_as::<_, (String, String)>(
+        "SELECT source_path, target FROM knowledge_links ORDER BY rowid DESC",
+    )
+    .fetch_all(state.db_manager.pool())
+    .await
+    .map_err(|error| error.to_string())?;
+    let tasks = sqlx::query_as::<_, KnowledgeTask>(
+        "SELECT id, meeting_id, document_path, text, owner, completed, line_number
+         FROM knowledge_tasks ORDER BY rowid DESC LIMIT 240",
+    )
+    .fetch_all(state.db_manager.pool())
+    .await
+    .map_err(|error| error.to_string())?;
+    let decisions = sqlx::query_as::<_, KnowledgeDecision>(
+        "SELECT id, meeting_id, document_path, text, line_number
+         FROM knowledge_decisions ORDER BY rowid DESC LIMIT 240",
+    )
+    .fetch_all(state.db_manager.pool())
+    .await
+    .map_err(|error| error.to_string())?;
+    Ok(build_knowledge_graph(
+        &documents,
+        &link_rows,
+        &tasks,
+        &decisions,
+        meeting_id.as_deref(),
+    ))
 }
 
 #[tauri::command]
@@ -1510,6 +1822,50 @@ mod tests {
         assert_eq!(document.participants, vec!["Gabriel", "Maria"]);
         assert_eq!(document.tasks.len(), 1);
         assert_eq!(document.decisions.len(), 1);
+    }
+
+    #[test]
+    fn builds_scoped_graph_from_rebuildable_index() {
+        let documents = vec![
+            KnowledgeDocument {
+                path: "/workspace/product/meeting.md".into(),
+                meeting_id: Some("meeting-1".into()),
+                kind: "meeting".into(),
+                title: "Produto".into(),
+                project: Some("EmpathyIA".into()),
+                participants_json: r#"["Gabriel"]"#.into(),
+                tags_json: r#"["release"]"#.into(),
+                status: Some("completed".into()),
+                modified_ms: 2,
+            },
+            KnowledgeDocument {
+                path: "/workspace/product/transcript.md".into(),
+                meeting_id: Some("meeting-1".into()),
+                kind: "transcript".into(),
+                title: "Transcrição — Produto".into(),
+                project: None,
+                participants_json: "[]".into(),
+                tags_json: "[]".into(),
+                status: None,
+                modified_ms: 1,
+            },
+        ];
+        let tasks = vec![KnowledgeTask {
+            id: "task-1".into(),
+            meeting_id: Some("meeting-1".into()),
+            document_path: "/workspace/product/meeting.md".into(),
+            text: "Revisar release".into(),
+            owner: Some("Gabriel".into()),
+            completed: false,
+            line_number: 12,
+        }];
+        let graph = build_knowledge_graph(&documents, &[], &tasks, &[], Some("meeting-1"));
+        assert!(graph.nodes.iter().any(|node| node.kind == "meeting"));
+        assert!(graph.nodes.iter().any(|node| node.kind == "transcript"));
+        assert!(graph.nodes.iter().any(|node| node.kind == "project"));
+        assert!(graph.nodes.iter().any(|node| node.kind == "person"));
+        assert!(graph.nodes.iter().any(|node| node.kind == "task"));
+        assert!(graph.edges.iter().any(|edge| edge.kind == "contains"));
     }
 
     #[test]
