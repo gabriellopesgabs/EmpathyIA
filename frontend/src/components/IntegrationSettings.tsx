@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { useRouter } from 'next/navigation';
 import { CalendarDays, ExternalLink, Mail, ShieldCheck, UsersRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { ConnectedAccount, IntegrationCapability, IntegrationFeatureFlags, IntegrationProvider, MicrosoftAuthReadiness, OutlookCalendarEvent } from '@/types/integrations';
+import type { ConnectedAccount, IntegrationCapability, IntegrationFeatureFlags, IntegrationProvider, MicrosoftAuthReadiness, OutlookCalendarEvent, PreparedOutlookNote } from '@/types/integrations';
 
 const providerNames: Record<IntegrationProvider, string> = {
   microsoft: 'Microsoft Outlook',
@@ -31,6 +32,7 @@ const capabilityIcons: Record<IntegrationCapability['id'], typeof CalendarDays> 
 };
 
 export function IntegrationSettings() {
+  const router = useRouter();
   const [capabilities, setCapabilities] = useState<IntegrationCapability[]>([]);
   const [flags, setFlags] = useState<IntegrationFeatureFlags | null>(null);
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
@@ -38,6 +40,7 @@ export function IntegrationSettings() {
   const [connectingMicrosoft, setConnectingMicrosoft] = useState(false);
   const [outlookEvents, setOutlookEvents] = useState<OutlookCalendarEvent[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
+  const [preparingEventId, setPreparingEventId] = useState<string | null>(null);
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
@@ -107,6 +110,25 @@ export function IntegrationSettings() {
     }
   };
 
+  const prepareOutlookEvent = async (event: OutlookCalendarEvent) => {
+    if (!microsoftAccount) return;
+    setPreparingEventId(event.id);
+    setError('');
+    try {
+      const prepared = await invoke<PreparedOutlookNote>('api_create_note_from_outlook_event', {
+        accountId: microsoftAccount.id,
+        eventId: event.id,
+      });
+      window.dispatchEvent(new CustomEvent('notes-changed'));
+      window.dispatchEvent(new CustomEvent('knowledge-index-updated'));
+      router.push(`/notes?id=${prepared.note_id}`);
+    } catch (reason) {
+      setError(String(reason));
+    } finally {
+      setPreparingEventId(null);
+    }
+  };
+
   return (
     <div className="integration-settings">
       <section className="integration-intro">
@@ -118,7 +140,7 @@ export function IntegrationSettings() {
 
       {accounts.length > 0 && <section className="integration-accounts"><h3>Contas conectadas</h3>{accounts.map(account => <article key={account.id}><div><strong>{account.display_name}</strong><span>{account.email}</span><small>{account.granted_permissions.join(' · ')}</small></div><Button variant="ghost" onClick={() => void disconnect(account)}>Desconectar</Button></article>)}</section>}
 
-      {microsoftAccount && <section className="outlook-calendar-preview"><header><div><p className="eyebrow">Próximos 14 dias</p><h3>Calendário do Outlook</h3></div><span>{loadingEvents ? 'Atualizando…' : `${outlookEvents.length} evento(s)`}</span></header>{!loadingEvents && outlookEvents.length === 0 && <p className="outlook-calendar-empty">Nenhuma reunião encontrada neste período.</p>}{outlookEvents.slice(0, 8).map(event => <article key={event.id}><time dateTime={event.starts_at}>{new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(event.starts_at))}</time><div><strong>{event.title}</strong><span>{event.organizer?.display_name || 'Organizador não informado'} · {event.attendees.length} convidado(s)</span></div>{event.meeting_provider && <small>{event.meeting_provider === 'microsoft-teams' ? 'Teams' : event.meeting_provider === 'google-meet' ? 'Google Meet' : event.meeting_provider === 'zoom' ? 'Zoom' : 'Reunião online'}</small>}</article>)}</section>}
+      {microsoftAccount && <section className="outlook-calendar-preview"><header><div><p className="eyebrow">Próximos 14 dias</p><h3>Calendário do Outlook</h3></div><span>{loadingEvents ? 'Atualizando…' : `${outlookEvents.length} evento(s)`}</span></header>{!loadingEvents && outlookEvents.length === 0 && <p className="outlook-calendar-empty">Nenhuma reunião encontrada neste período.</p>}{outlookEvents.slice(0, 8).map(event => <article key={event.id}><time dateTime={event.starts_at}>{new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(event.starts_at))}</time><div><strong>{event.title}</strong><span>{event.organizer?.display_name || 'Organizador não informado'} · {event.attendees.length} convidado(s)</span></div>{event.meeting_provider && <small>{event.meeting_provider === 'microsoft-teams' ? 'Teams' : event.meeting_provider === 'google-meet' ? 'Google Meet' : event.meeting_provider === 'zoom' ? 'Zoom' : 'Reunião online'}</small>}<Button size="sm" variant="ghost" disabled={preparingEventId !== null} onClick={() => void prepareOutlookEvent(event)}>{preparingEventId === event.id ? 'Preparando…' : 'Preparar'}</Button></article>)}</section>}
 
       <div className="integration-provider-list">
         {providers.map(([provider, items]) => <section className="integration-provider" key={provider}>

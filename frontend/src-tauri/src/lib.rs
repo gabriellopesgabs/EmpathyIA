@@ -753,6 +753,7 @@ pub fn run() {
             integrations::api_get_microsoft_auth_readiness,
             integrations::api_connect_microsoft_calendar,
             integrations::api_list_outlook_events,
+            integrations::api_create_note_from_outlook_event,
             integrations::api_get_integration_feature_flags,
             integrations::api_save_integration_feature_flags,
             integrations::api_list_connected_accounts,

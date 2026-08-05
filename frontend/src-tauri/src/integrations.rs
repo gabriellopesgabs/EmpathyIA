@@ -161,6 +161,13 @@ pub struct OutlookCalendarEvent {
     pub web_url: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct PreparedOutlookNote {
+    pub note_id: String,
+    pub folder_path: String,
+    pub event: OutlookCalendarEvent,
+}
+
 #[derive(Debug, Deserialize)]
 struct GraphEmailAddress {
     name: Option<String>,
@@ -834,6 +841,41 @@ fn normalize_calendar_event(event: GraphCalendarEvent) -> Result<OutlookCalendar
     })
 }
 
+async fn fetch_outlook_event(
+    access_token: &str,
+    event_id: &str,
+) -> Result<OutlookCalendarEvent, String> {
+    if event_id.trim().is_empty() || event_id.len() > 2048 {
+        return Err("Identificador de evento inválido".into());
+    }
+    let mut url = url::Url::parse("https://graph.microsoft.com/v1.0/me/events/")
+        .map_err(|error| error.to_string())?;
+    url.path_segments_mut()
+        .map_err(|_| "Endpoint de evento inválido".to_string())?
+        .push(event_id);
+    url.query_pairs_mut().append_pair(
+        "$select",
+        "id,subject,organizer,attendees,start,end,location,onlineMeetingUrl,onlineMeeting,webLink",
+    );
+    let response = reqwest::Client::new()
+        .get(url)
+        .bearer_auth(access_token)
+        .header("Prefer", "outlook.timezone=\"UTC\"")
+        .send()
+        .await
+        .map_err(|error| format!("Falha ao buscar o evento selecionado: {error}"))?;
+    let status = response.status();
+    let body = response.text().await.map_err(|error| error.to_string())?;
+    if !status.is_success() {
+        return Err(format!(
+            "O evento selecionado não está mais disponível: HTTP {status}"
+        ));
+    }
+    let event: GraphCalendarEvent = serde_json::from_str(&body)
+        .map_err(|error| format!("Evento do Outlook inválido: {error}"))?;
+    normalize_calendar_event(event)
+}
+
 #[tauri::command]
 pub fn api_get_integration_capabilities() -> Vec<IntegrationCapability> {
     capabilities()
@@ -1007,6 +1049,77 @@ pub async fn api_list_outlook_events<R: Runtime>(
     }
     events.sort_by(|left, right| left.starts_at.cmp(&right.starts_at));
     Ok(events)
+}
+
+#[tauri::command]
+pub async fn api_create_note_from_outlook_event<R: Runtime>(
+    app: AppHandle<R>,
+    state: tauri::State<'_, crate::state::AppState>,
+    account_id: String,
+    event_id: String,
+) -> Result<PreparedOutlookNote, String> {
+    let access_token = microsoft_access_token(&app, &account_id).await?;
+    // Fetch the concrete event again at the moment of the write. A stale list
+    // item is never used to create participants or source metadata.
+    let event = fetch_outlook_event(&access_token, &event_id).await?;
+    let receipt = format!(
+        "<!-- empathy-source-receipt\nschema: 1\nsource_kind: calendar-event\nprovider: microsoft\nsource_id: {}\nselected_by_user: true\ncontent_included: true\n-->\n\n# {}\n\n## Preparação da reunião\n\nUse a Skill **Preparar reunião** para desenvolver o contexto deste encontro.\n",
+        event.id, event.title
+    );
+    let pool = state.db_manager.pool().clone();
+    let created = crate::api::api_create_note(
+        app,
+        state,
+        event.title.clone(),
+        receipt,
+        Some(event.starts_at.clone()),
+    )
+    .await?;
+    let mut participants = event
+        .attendees
+        .iter()
+        .map(|participant| participant.display_name.clone())
+        .collect::<Vec<_>>();
+    if let Some(organizer) = &event.organizer {
+        participants.push(organizer.display_name.clone());
+    }
+    participants.sort_by_key(|value| value.to_lowercase());
+    participants.dedup_by(|left, right| left.eq_ignore_ascii_case(right));
+    let linked_at = chrono::Utc::now().to_rfc3339();
+    let external_meeting = serde_yaml::to_value(serde_json::json!({
+        "schema": 1,
+        "provider": "microsoft",
+        "account_id": account_id,
+        "calendar_event_id": event.id,
+        "meeting_provider": event.meeting_provider,
+        "starts_at": event.starts_at,
+        "ends_at": event.ends_at,
+        "join_url": event.join_url,
+        "organizer": event.organizer,
+        "attendees": event.attendees,
+        "linked_at": linked_at,
+    }))
+    .map_err(|error| error.to_string())?;
+    if let Err(error) = crate::meeting_files::attach_external_meeting(
+        std::path::Path::new(&created.folder_path),
+        external_meeting,
+        &participants,
+        &linked_at,
+    ) {
+        let _ = sqlx::query("DELETE FROM meetings WHERE id = ?")
+            .bind(&created.id)
+            .execute(&pool)
+            .await;
+        let _ = std::fs::remove_dir_all(&created.folder_path);
+        return Err(format!(
+            "Não foi possível associar o evento à Nota: {error}"
+        ));
+    }
+    Ok(PreparedOutlookNote {
+        note_id: created.id,
+        folder_path: created.folder_path,
+        event,
+    })
 }
 
 #[tauri::command]

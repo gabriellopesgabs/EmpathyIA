@@ -70,6 +70,12 @@ export interface OutlookCalendarEvent {
   web_url?: string | null;
 }
 
+export interface PreparedOutlookNote {
+  note_id: string;
+  folder_path: string;
+  event: OutlookCalendarEvent;
+}
+
 export interface ParticipantIdentity {
   id: string;
   display_name: string;
