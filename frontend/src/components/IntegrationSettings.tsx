@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useRouter } from 'next/navigation';
-import { CalendarDays, ExternalLink, Mail, ShieldCheck, UsersRound } from 'lucide-react';
+import { CalendarDays, ExternalLink, Mail, Server, ShieldCheck, Unplug, UsersRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { ConnectedAccount, IntegrationCapability, IntegrationFeatureFlags, IntegrationProvider, MicrosoftAuthReadiness, OutlookCalendarEvent, PreparedOutlookNote } from '@/types/integrations';
+import type { AgentServiceReadiness, ConnectedAccount, IntegrationCapability, IntegrationFeatureFlags, IntegrationProvider, MicrosoftAuthReadiness, OutlookCalendarEvent, PreparedOutlookNote } from '@/types/integrations';
 
 const providerNames: Record<IntegrationProvider, string> = {
   microsoft: 'Microsoft Outlook',
@@ -37,6 +37,10 @@ export function IntegrationSettings() {
   const [flags, setFlags] = useState<IntegrationFeatureFlags | null>(null);
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
   const [microsoftReadiness, setMicrosoftReadiness] = useState<MicrosoftAuthReadiness | null>(null);
+  const [agentReadiness, setAgentReadiness] = useState<AgentServiceReadiness | null>(null);
+  const [agentEndpoint, setAgentEndpoint] = useState('');
+  const [agentToken, setAgentToken] = useState('');
+  const [pairingAgent, setPairingAgent] = useState(false);
   const [connectingMicrosoft, setConnectingMicrosoft] = useState(false);
   const [outlookEvents, setOutlookEvents] = useState<OutlookCalendarEvent[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
@@ -45,16 +49,19 @@ export function IntegrationSettings() {
 
   const load = useCallback(async () => {
     try {
-      const [nextCapabilities, nextFlags, nextAccounts, nextMicrosoftReadiness] = await Promise.all([
+      const [nextCapabilities, nextFlags, nextAccounts, nextMicrosoftReadiness, nextAgentReadiness] = await Promise.all([
         invoke<IntegrationCapability[]>('api_get_integration_capabilities'),
         invoke<IntegrationFeatureFlags>('api_get_integration_feature_flags'),
         invoke<ConnectedAccount[]>('api_list_connected_accounts'),
         invoke<MicrosoftAuthReadiness>('api_get_microsoft_auth_readiness'),
+        invoke<AgentServiceReadiness>('api_get_agent_service_readiness'),
       ]);
       setCapabilities(nextCapabilities);
       setFlags(nextFlags);
       setAccounts(nextAccounts);
       setMicrosoftReadiness(nextMicrosoftReadiness);
+      setAgentReadiness(nextAgentReadiness);
+      setAgentEndpoint(current => current || nextAgentReadiness.endpoint || '');
       setError('');
     } catch (reason) {
       setError(String(reason));
@@ -129,6 +136,21 @@ export function IntegrationSettings() {
     }
   };
 
+  const pairAgent = async () => {
+    setPairingAgent(true); setError('');
+    try {
+      const readiness = await invoke<AgentServiceReadiness>('api_pair_agent_service', { endpoint: agentEndpoint, pairingToken: agentToken });
+      setAgentReadiness(readiness); setAgentToken(''); await load();
+    } catch (reason) { setError(String(reason)); }
+    finally { setPairingAgent(false); }
+  };
+
+  const disconnectAgent = async () => {
+    if (!window.confirm('Desconectar o serviço do Agente Empathy? Sessões ativas devem ser encerradas antes no painel da Nota.')) return;
+    try { await invoke('api_disconnect_agent_service'); setAgentToken(''); setAgentEndpoint(''); await load(); }
+    catch (reason) { setError(String(reason)); }
+  };
+
   return (
     <div className="integration-settings">
       <section className="integration-intro">
@@ -141,6 +163,8 @@ export function IntegrationSettings() {
       {accounts.length > 0 && <section className="integration-accounts"><h3>Contas conectadas</h3>{accounts.map(account => <article key={account.id}><div><strong>{account.display_name}</strong><span>{account.email}</span><small>{account.granted_permissions.join(' · ')}</small></div><Button variant="ghost" onClick={() => void disconnect(account)}>Desconectar</Button></article>)}</section>}
 
       {microsoftAccount && <section className="outlook-calendar-preview"><header><div><p className="eyebrow">Próximos 14 dias</p><h3>Calendário do Outlook</h3></div><span>{loadingEvents ? 'Atualizando…' : `${outlookEvents.length} evento(s)`}</span></header>{!loadingEvents && outlookEvents.length === 0 && <p className="outlook-calendar-empty">Nenhuma reunião encontrada neste período.</p>}{outlookEvents.slice(0, 8).map(event => <article key={event.id}><time dateTime={event.starts_at}>{new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(event.starts_at))}</time><div><strong>{event.title}</strong><span>{event.organizer?.display_name || 'Organizador não informado'} · {event.attendees.length} convidado(s)</span></div>{event.meeting_provider && <small>{event.meeting_provider === 'microsoft-teams' ? 'Teams' : event.meeting_provider === 'google-meet' ? 'Google Meet' : event.meeting_provider === 'zoom' ? 'Zoom' : 'Reunião online'}</small>}<Button size="sm" variant="ghost" disabled={preparingEventId !== null} onClick={() => void prepareOutlookEvent(event)}>{preparingEventId === event.id ? 'Preparando…' : 'Preparar'}</Button></article>)}</section>}
+
+      <section className="agent-service-settings"><header><div><p className="eyebrow">Infraestrutura administrada</p><h3><Server /> Serviço do Agente Teams</h3><p>O desktop controla o convite e a auditoria; mídia em tempo real roda em um serviço Windows/Azure separado.</p></div><span data-ready={agentReadiness?.ready}>{agentReadiness?.ready ? 'Pronto' : agentReadiness?.reachable ? 'Configuração incompleta' : 'Desconectado'}</span></header>{agentReadiness?.configured && <div className="agent-service-current"><strong>{agentReadiness.visible_name}</strong><small>{agentReadiness.endpoint}</small>{agentReadiness.missing.length > 0 && <p>Pendente: {agentReadiness.missing.join(' · ')}</p>}{agentReadiness.service_error && <p>{agentReadiness.service_error}</p>}<Button size="sm" variant="ghost" onClick={() => void disconnectAgent()}><Unplug />Desconectar</Button></div>}<div className="agent-service-pair"><label>Endpoint HTTPS<input value={agentEndpoint} onChange={event => setAgentEndpoint(event.target.value)} placeholder="https://agent.empathy.ai" /></label><label>Token de pareamento<input type="password" autoComplete="new-password" value={agentToken} onChange={event => setAgentToken(event.target.value)} placeholder="Fornecido pelo administrador" /></label><Button disabled={!agentEndpoint || agentToken.length < 24 || pairingAgent} onClick={() => void pairAgent()}>{pairingAgent ? 'Validando serviço…' : agentReadiness?.configured ? 'Parear novamente' : 'Parear serviço'}</Button></div><small>O token fica no cofre do sistema e nunca entra nas Notas. Parear não concede consentimento de reunião.</small></section>
 
       <div className="integration-provider-list">
         {providers.map(([provider, items]) => <section className="integration-provider" key={provider}>

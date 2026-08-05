@@ -331,6 +331,45 @@
   .outlook-calendar-preview article > small { padding: 3px 6px; border-radius: 999px; background: hsl(var(--muted)); }
   .outlook-calendar-preview article > button { min-height: 28px; }
   .outlook-calendar-empty { padding: 22px 16px; color: hsl(var(--muted-foreground)); font-size: 11px; text-align: center; }
+  .agent-service-settings { overflow: hidden; border: 1px solid hsl(var(--border)); border-radius: 14px; background: hsl(var(--card)); }
+  .agent-service-settings > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 14px 16px; border-bottom: 1px solid hsl(var(--border)); }
+  .agent-service-settings h3 { display: flex; align-items: center; gap: 7px; margin-top: 2px; font-size: 14px; font-weight: 680; }
+  .agent-service-settings h3 svg { width: 16px; }
+  .agent-service-settings header p, .agent-service-settings > small, .agent-service-current small, .agent-service-current p { color: hsl(var(--muted-foreground)); font-size: 10px; line-height: 1.45; }
+  .agent-service-settings > header > span { flex: none; padding: 4px 7px; border-radius: 999px; background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); font-size: 9px; }
+  .agent-service-settings > header > span[data-ready="true"] { background: hsl(142 48% 42% / .14); color: hsl(142 55% 34%); }
+  .agent-service-current { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 12px; padding: 12px 16px; border-bottom: 1px solid hsl(var(--border)); }
+  .agent-service-current strong, .agent-service-current small, .agent-service-current p { grid-column: 1; }
+  .agent-service-current button { grid-column: 2; grid-row: 1 / 4; }
+  .agent-service-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: end; gap: 9px; padding: 14px 16px 8px; }
+  .agent-service-pair label { display: grid; gap: 4px; color: hsl(var(--muted-foreground)); font-size: 10px; }
+  .agent-service-pair input { min-width: 0; height: 34px; padding: 0 9px; border: 1px solid hsl(var(--border)); border-radius: 7px; background: hsl(var(--background)); color: hsl(var(--foreground)); font-size: 11px; }
+  .agent-service-settings > small { display: block; padding: 0 16px 14px; }
+  .meeting-agent-panel { padding-bottom: 16px; }
+  .meeting-agent-identity { display: flex; gap: 10px; margin: 12px 13px; padding: 12px; border: 1px solid hsl(var(--border)); border-radius: 9px; }
+  .meeting-agent-identity > svg { width: 19px; color: hsl(var(--primary)); }
+  .meeting-agent-identity strong, .meeting-agent-identity small { display: block; }
+  .meeting-agent-identity strong { font-size: 11px; }
+  .meeting-agent-identity small { margin-top: 3px; color: hsl(var(--muted-foreground)); font-size: 9px; }
+  .meeting-agent-warning, .meeting-agent-readiness, .meeting-agent-consent, .meeting-agent-timeline { margin: 11px 13px 0; padding: 11px; border: 1px solid hsl(var(--border)); border-radius: 9px; }
+  .meeting-agent-warning { display: flex; gap: 7px; color: hsl(var(--destructive)); font-size: 10px; }
+  .meeting-agent-warning svg { width: 14px; }
+  .meeting-agent-readiness strong, .meeting-agent-consent strong, .meeting-agent-timeline strong { font-size: 11px; }
+  .meeting-agent-readiness p, .meeting-agent-readiness li, .meeting-agent-readiness small, .meeting-agent-consent p { margin-top: 4px; color: hsl(var(--muted-foreground)); font-size: 9px; line-height: 1.45; }
+  .meeting-agent-readiness ul { margin: 7px 0; padding-left: 16px; }
+  .meeting-agent-consent { display: flex; align-items: flex-start; gap: 9px; }
+  .meeting-agent-consent > svg { width: 17px; color: hsl(var(--primary)); }
+  .meeting-agent-consent label { display: flex; gap: 6px; margin: 9px 0; font-size: 10px; line-height: 1.4; }
+  .meeting-agent-consent input { margin-top: 2px; accent-color: hsl(var(--primary)); }
+  .meeting-agent-timeline > header { display: flex; align-items: center; justify-content: space-between; }
+  .meeting-agent-timeline > header div { display: flex; gap: 4px; }
+  .meeting-agent-timeline ol { display: grid; gap: 0; margin: 10px 0; }
+  .meeting-agent-timeline li { display: grid; grid-template-columns: 13px 1fr; gap: 7px; min-height: 42px; list-style: none; }
+  .meeting-agent-timeline li > span { width: 8px; height: 8px; margin-top: 3px; border: 2px solid hsl(var(--card)); border-radius: 999px; background: hsl(var(--muted-foreground)); box-shadow: 0 0 0 1px hsl(var(--border)); }
+  .meeting-agent-timeline li[data-state="transcribing"] > span { background: hsl(var(--destructive)); }
+  .meeting-agent-timeline li[data-state="consent-granted"] > span { background: hsl(142 55% 42%); }
+  .meeting-agent-timeline li div { padding-bottom: 8px; border-bottom: 1px solid hsl(var(--border) / .55); }
+  .meeting-agent-timeline time, .meeting-agent-timeline li p, .meeting-agent-timeline li small, .meeting-agent-timeline > small { display: block; margin-top: 2px; color: hsl(var(--muted-foreground)); font-size: 9px; line-height: 1.4; }
 }
 
 @keyframes recording-pulse {
@@ -585,4 +624,12 @@
     animation-iteration-count: 1 !important;
     transition-duration: .01ms !important;
   }
+}
+
+@media (max-width: 760px) {
+  .agent-service-pair { grid-template-columns: 1fr; }
+  .agent-service-pair button { justify-self: start; }
+  .agent-service-settings > header { align-items: flex-start; }
+  .outlook-calendar-preview article { grid-template-columns: 1fr auto; }
+  .outlook-calendar-preview article time { grid-column: 1 / -1; }
 }

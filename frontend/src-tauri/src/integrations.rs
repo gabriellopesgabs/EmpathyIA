@@ -493,6 +493,21 @@ fn write_flags<R: Runtime>(
     write_recoverable_json(&flags_path(app)?, flags)
 }
 
+pub(crate) fn meeting_agent_feature_enabled<R: Runtime>(
+    app: &AppHandle<R>,
+) -> Result<bool, String> {
+    Ok(read_flags(app)?.teams_agent)
+}
+
+pub(crate) fn set_meeting_agent_feature_enabled<R: Runtime>(
+    app: &AppHandle<R>,
+    enabled: bool,
+) -> Result<(), String> {
+    let mut flags = read_flags(app)?;
+    flags.teams_agent = enabled;
+    write_flags(app, &flags)
+}
+
 fn write_recoverable_json<T: Serialize>(path: &std::path::Path, value: &T) -> Result<(), String> {
     let directory = path
         .parent()

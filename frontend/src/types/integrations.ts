@@ -165,6 +165,16 @@ export interface MeetingAgentAudit {
   path: string;
 }
 
+export interface AgentServiceReadiness {
+  configured: boolean;
+  endpoint?: string | null;
+  reachable: boolean;
+  ready: boolean;
+  missing: string[];
+  service_error?: string | null;
+  visible_name: string;
+}
+
 export interface ContextSourceReceipt {
   schema: 1;
   source_id: string;
