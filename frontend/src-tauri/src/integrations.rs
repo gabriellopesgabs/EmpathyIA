@@ -168,6 +168,40 @@ pub struct PreparedOutlookNote {
     pub event: OutlookCalendarEvent,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct OutlookMailCandidate {
+    pub id: String,
+    pub subject: String,
+    pub sender: Option<OutlookEventParticipant>,
+    pub to: Vec<OutlookEventParticipant>,
+    pub cc: Vec<OutlookEventParticipant>,
+    pub sent_at: Option<String>,
+    pub received_at: Option<String>,
+    pub conversation_id: Option<String>,
+    pub has_attachments: bool,
+    pub web_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct OutlookSelectedMail {
+    #[serde(flatten)]
+    pub message: OutlookMailCandidate,
+    pub body_text: String,
+    pub source_receipt: ContextSourceReceipt,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ContextSourceReceipt {
+    pub schema: u32,
+    pub source_id: String,
+    pub source_kind: &'static str,
+    pub provider: IntegrationProvider,
+    pub title: String,
+    pub occurred_at: Option<String>,
+    pub selected_by_user: bool,
+    pub content_included: bool,
+}
+
 #[derive(Debug, Deserialize)]
 struct GraphEmailAddress {
     name: Option<String>,
@@ -231,6 +265,43 @@ struct GraphCalendarEvent {
 #[derive(Debug, Deserialize)]
 struct GraphCalendarPage {
     value: Vec<GraphCalendarEvent>,
+    #[serde(rename = "@odata.nextLink")]
+    next_link: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GraphMessageBody {
+    #[serde(rename = "contentType")]
+    content_type: Option<String>,
+    content: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GraphMailMessage {
+    id: String,
+    subject: Option<String>,
+    #[serde(rename = "from")]
+    sender: Option<GraphRecipient>,
+    #[serde(rename = "toRecipients", default)]
+    to_recipients: Vec<GraphRecipient>,
+    #[serde(rename = "ccRecipients", default)]
+    cc_recipients: Vec<GraphRecipient>,
+    #[serde(rename = "sentDateTime")]
+    sent_at: Option<String>,
+    #[serde(rename = "receivedDateTime")]
+    received_at: Option<String>,
+    #[serde(rename = "conversationId")]
+    conversation_id: Option<String>,
+    #[serde(rename = "hasAttachments", default)]
+    has_attachments: bool,
+    #[serde(rename = "webLink")]
+    web_url: Option<String>,
+    body: Option<GraphMessageBody>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GraphMailPage {
+    value: Vec<GraphMailMessage>,
     #[serde(rename = "@odata.nextLink")]
     next_link: Option<String>,
 }
@@ -509,6 +580,19 @@ fn get_token(
     }
 }
 
+fn restore_token(
+    provider: &IntegrationProvider,
+    account_id: &str,
+    token_kind: &str,
+    previous: Option<&str>,
+) {
+    if let Some(token) = previous {
+        let _ = save_token(provider, account_id, token_kind, token);
+    } else {
+        let _ = delete_token(provider, account_id, token_kind);
+    }
+}
+
 fn microsoft_client_id() -> Option<String> {
     std::env::var("EMPATHY_MICROSOFT_CLIENT_ID")
         .ok()
@@ -523,13 +607,31 @@ fn microsoft_tenant() -> String {
         .unwrap_or_else(|| "common".into())
 }
 
-const MICROSOFT_CALENDAR_SCOPES: &[&str] = &[
-    "openid",
-    "profile",
-    "offline_access",
-    "User.Read",
-    "Calendars.ReadBasic",
-];
+const MICROSOFT_BASE_SCOPES: &[&str] = &["openid", "profile", "offline_access", "User.Read"];
+
+fn microsoft_scopes_for_permissions(permissions: &[ConnectorPermission]) -> Vec<&'static str> {
+    let mut scopes = MICROSOFT_BASE_SCOPES.to_vec();
+    if permissions.contains(&ConnectorPermission::CalendarBasic) {
+        scopes.push("Calendars.ReadBasic");
+    }
+    if permissions.contains(&ConnectorPermission::MailContent) {
+        // Mail.Read includes message metadata, so avoid requesting the redundant
+        // Mail.ReadBasic scope once the user has explicitly approved content.
+        scopes.push("Mail.Read");
+    } else if permissions.contains(&ConnectorPermission::MailMetadata) {
+        scopes.push("Mail.ReadBasic");
+    }
+    scopes
+}
+
+fn scope_was_granted(token: &MicrosoftTokenResponse, expected: &str) -> bool {
+    token
+        .scope
+        .as_deref()
+        .unwrap_or_default()
+        .split_whitespace()
+        .any(|scope| scope.eq_ignore_ascii_case(expected))
+}
 
 fn random_urlsafe(bytes: usize) -> String {
     let mut value = vec![0_u8; bytes];
@@ -624,8 +726,9 @@ async fn exchange_microsoft_code(
     code: &str,
     verifier: &str,
     redirect_uri: &str,
+    scopes: &[&str],
 ) -> Result<MicrosoftTokenResponse, String> {
-    let scope = MICROSOFT_CALENDAR_SCOPES.join(" ");
+    let scope = scopes.join(" ");
     let response = reqwest::Client::new()
         .post(format!(
             "https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token"
@@ -662,8 +765,9 @@ async fn refresh_microsoft_token(
     tenant: &str,
     client_id: &str,
     refresh_token: &str,
+    scopes: &[&str],
 ) -> Result<MicrosoftTokenResponse, String> {
-    let scope = MICROSOFT_CALENDAR_SCOPES.join(" ");
+    let scope = scopes.join(" ");
     let response = reqwest::Client::new()
         .post(format!(
             "https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token"
@@ -709,6 +813,7 @@ async fn microsoft_access_token<R: Runtime>(
         })
         .ok_or_else(|| "Conta Microsoft não encontrada".to_string())?;
     let account = &accounts[index];
+    let scopes = microsoft_scopes_for_permissions(&account.granted_permissions);
     let valid_until = account
         .token_expires_at
         .as_deref()
@@ -726,7 +831,7 @@ async fn microsoft_access_token<R: Runtime>(
         "O Client ID público do Empathy não está disponível nesta instalação".to_string()
     })?;
     let tenant = account.tenant_id.as_deref().unwrap_or("common");
-    let token = refresh_microsoft_token(tenant, &client_id, &refresh).await?;
+    let token = refresh_microsoft_token(tenant, &client_id, &refresh, &scopes).await?;
     save_token(
         &account.provider,
         &account.id,
@@ -763,6 +868,57 @@ async fn microsoft_profile(access_token: &str) -> Result<MicrosoftGraphProfile, 
         .map_err(|error| format!("Perfil Microsoft inválido: {error}"))
 }
 
+async fn authorize_microsoft(
+    tenant: &str,
+    client_id: &str,
+    scopes: &[&str],
+) -> Result<(MicrosoftTokenResponse, MicrosoftGraphProfile), String> {
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .map_err(|error| error.to_string())?;
+    let port = listener
+        .local_addr()
+        .map_err(|error| error.to_string())?
+        .port();
+    let redirect_uri = format!("http://127.0.0.1:{port}/oauth/callback");
+    let verifier = random_urlsafe(64);
+    let challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()));
+    let state = random_urlsafe(32);
+    let mut authorization = url::Url::parse(&format!(
+        "https://login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize"
+    ))
+    .map_err(|error| error.to_string())?;
+    authorization
+        .query_pairs_mut()
+        .append_pair("client_id", client_id)
+        .append_pair("response_type", "code")
+        .append_pair("redirect_uri", &redirect_uri)
+        .append_pair("response_mode", "query")
+        .append_pair("scope", &scopes.join(" "))
+        .append_pair("state", &state)
+        .append_pair("code_challenge", &challenge)
+        .append_pair("code_challenge_method", "S256");
+    open_system_browser(authorization.as_str())?;
+    let code = receive_oauth_callback(listener, &state).await?;
+    let token =
+        exchange_microsoft_code(tenant, client_id, &code, &verifier, &redirect_uri, scopes).await?;
+    let profile = microsoft_profile(&token.access_token).await?;
+    Ok((token, profile))
+}
+
+fn merged_permissions(
+    existing: &[ConnectorPermission],
+    additions: &[ConnectorPermission],
+) -> Vec<ConnectorPermission> {
+    let mut permissions = existing.to_vec();
+    for permission in additions {
+        if !permissions.contains(permission) {
+            permissions.push(permission.clone());
+        }
+    }
+    permissions
+}
+
 fn normalize_graph_datetime(value: &str) -> Result<String, String> {
     if let Ok(date) = chrono::DateTime::parse_from_rfc3339(value) {
         return Ok(date.with_timezone(&chrono::Utc).to_rfc3339());
@@ -788,6 +944,92 @@ fn participant_from_graph(
         email: address,
         response,
     })
+}
+
+fn mail_participant_from_graph(recipient: GraphRecipient) -> Option<OutlookEventParticipant> {
+    participant_from_graph(recipient.email_address, None)
+}
+
+fn normalize_mail_message(message: GraphMailMessage) -> Result<OutlookMailCandidate, String> {
+    let normalize_optional_date = |value: Option<String>| {
+        value
+            .map(|date| normalize_graph_datetime(&date))
+            .transpose()
+    };
+    Ok(OutlookMailCandidate {
+        id: message.id,
+        subject: message
+            .subject
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(|| "Sem assunto".into()),
+        sender: message.sender.and_then(mail_participant_from_graph),
+        to: message
+            .to_recipients
+            .into_iter()
+            .filter_map(mail_participant_from_graph)
+            .collect(),
+        cc: message
+            .cc_recipients
+            .into_iter()
+            .filter_map(mail_participant_from_graph)
+            .collect(),
+        sent_at: normalize_optional_date(message.sent_at)?,
+        received_at: normalize_optional_date(message.received_at)?,
+        conversation_id: message.conversation_id,
+        has_attachments: message.has_attachments,
+        web_url: message.web_url,
+    })
+}
+
+fn validate_mail_search_address(value: &str) -> Result<String, String> {
+    let address = value.trim().to_ascii_lowercase();
+    if address.is_empty()
+        || address.len() > 254
+        || address.matches('@').count() != 1
+        || address.starts_with('@')
+        || address.ends_with('@')
+        || !address
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || "@._+-".contains(character))
+    {
+        return Err(format!("E-mail de participante inválido: {value}"));
+    }
+    Ok(address)
+}
+
+fn validate_graph_message_id(value: &str) -> Result<(), String> {
+    if value.is_empty()
+        || value.len() > 1024
+        || value.chars().any(|character| character.is_control())
+    {
+        return Err("Identificador de mensagem inválido".into());
+    }
+    Ok(())
+}
+
+fn microsoft_account_with_permission<R: Runtime>(
+    app: &AppHandle<R>,
+    account_id: &str,
+    permission: ConnectorPermission,
+) -> Result<ConnectedAccount, String> {
+    validate_identifier(account_id, "conta")?;
+    let account = read_accounts(app)?
+        .into_iter()
+        .find(|account| {
+            account.id == account_id && account.provider == IntegrationProvider::Microsoft
+        })
+        .ok_or_else(|| "Conta Microsoft não encontrada".to_string())?;
+    if !account.granted_permissions.contains(&permission) {
+        let label = match permission {
+            ConnectorPermission::MailMetadata => "Mail.ReadBasic",
+            ConnectorPermission::MailContent => "Mail.Read",
+            _ => "a permissão necessária",
+        };
+        return Err(format!(
+            "Autorize {label} explicitamente antes de continuar"
+        ));
+    }
+    Ok(account)
 }
 
 fn meeting_provider(join_url: Option<&str>) -> Option<String> {
@@ -884,10 +1126,11 @@ pub fn api_get_integration_capabilities() -> Vec<IntegrationCapability> {
 #[tauri::command]
 pub fn api_get_microsoft_auth_readiness() -> MicrosoftAuthReadiness {
     let configured = microsoft_client_id().is_some();
+    let permissions = [ConnectorPermission::CalendarBasic];
     MicrosoftAuthReadiness {
         configured,
         tenant: microsoft_tenant(),
-        requested_scopes: MICROSOFT_CALENDAR_SCOPES.to_vec(),
+        requested_scopes: microsoft_scopes_for_permissions(&permissions),
         missing: if configured {
             Vec::new()
         } else {
@@ -904,47 +1147,16 @@ pub async fn api_connect_microsoft_calendar<R: Runtime>(
         "O Client ID público do Empathy ainda não foi configurado no Microsoft Entra".to_string()
     })?;
     let tenant = microsoft_tenant();
-    let listener = TcpListener::bind("127.0.0.1:0")
-        .await
-        .map_err(|error| error.to_string())?;
-    let port = listener
-        .local_addr()
-        .map_err(|error| error.to_string())?
-        .port();
-    let redirect_uri = format!("http://127.0.0.1:{port}/oauth/callback");
-    let verifier = random_urlsafe(64);
-    let challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()));
-    let state = random_urlsafe(32);
-    let mut authorization = url::Url::parse(&format!(
-        "https://login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize"
-    ))
-    .map_err(|error| error.to_string())?;
-    authorization
-        .query_pairs_mut()
-        .append_pair("client_id", &client_id)
-        .append_pair("response_type", "code")
-        .append_pair("redirect_uri", &redirect_uri)
-        .append_pair("response_mode", "query")
-        .append_pair("scope", &MICROSOFT_CALENDAR_SCOPES.join(" "))
-        .append_pair("state", &state)
-        .append_pair("code_challenge", &challenge)
-        .append_pair("code_challenge_method", "S256");
-    open_system_browser(authorization.as_str())?;
-    let code = receive_oauth_callback(listener, &state).await?;
-    let token =
-        exchange_microsoft_code(&tenant, &client_id, &code, &verifier, &redirect_uri).await?;
-    let granted_scopes = token.scope.as_deref().unwrap_or_default();
-    if !granted_scopes
-        .split_whitespace()
-        .any(|scope| scope.eq_ignore_ascii_case("Calendars.ReadBasic"))
-    {
+    let permissions = [ConnectorPermission::CalendarBasic];
+    let scopes = microsoft_scopes_for_permissions(&permissions);
+    let (token, profile) = authorize_microsoft(&tenant, &client_id, &scopes).await?;
+    if !scope_was_granted(&token, "Calendars.ReadBasic") {
         return Err("A Microsoft não concedeu a permissão mínima Calendars.ReadBasic".into());
     }
     let refresh_token = token
         .refresh_token
         .as_deref()
         .ok_or_else(|| "A Microsoft não retornou autorização para renovar a sessão".to_string())?;
-    let profile = microsoft_profile(&token.access_token).await?;
     let account_id = format!("microsoft-{}", profile.id);
     let now = chrono::Utc::now();
     let account = ConnectedAccount {
@@ -992,6 +1204,142 @@ pub async fn api_connect_microsoft_calendar<R: Runtime>(
         return Err(error);
     }
     Ok(account)
+}
+
+#[tauri::command]
+pub async fn api_authorize_microsoft_mail<R: Runtime>(
+    app: AppHandle<R>,
+    account_id: String,
+    include_content: bool,
+) -> Result<ConnectedAccount, String> {
+    validate_identifier(&account_id, "conta")?;
+    let client_id = microsoft_client_id().ok_or_else(|| {
+        "O Client ID público do Empathy ainda não foi configurado no Microsoft Entra".to_string()
+    })?;
+    let mut accounts = read_accounts(&app)?;
+    let index = accounts
+        .iter()
+        .position(|account| {
+            account.id == account_id && account.provider == IntegrationProvider::Microsoft
+        })
+        .ok_or_else(|| "Conta Microsoft não encontrada".to_string())?;
+    let previous_account = accounts[index].clone();
+    let previous_flags = if include_content {
+        Some(read_flags(&app)?)
+    } else {
+        None
+    };
+    let additions = if include_content {
+        vec![
+            ConnectorPermission::MailMetadata,
+            ConnectorPermission::MailContent,
+        ]
+    } else {
+        vec![ConnectorPermission::MailMetadata]
+    };
+    let permissions = merged_permissions(&previous_account.granted_permissions, &additions);
+    let scopes = microsoft_scopes_for_permissions(&permissions);
+    let tenant = previous_account
+        .tenant_id
+        .clone()
+        .unwrap_or_else(|| "common".into());
+    let (token, profile) = authorize_microsoft(&tenant, &client_id, &scopes).await?;
+    if profile.id != previous_account.subject {
+        return Err(format!(
+            "A autorização foi feita com outra conta. Entre como {}.",
+            previous_account.email
+        ));
+    }
+    let required_scope = if include_content {
+        "Mail.Read"
+    } else {
+        "Mail.ReadBasic"
+    };
+    if !scope_was_granted(&token, required_scope)
+        && !(required_scope == "Mail.ReadBasic" && scope_was_granted(&token, "Mail.Read"))
+    {
+        return Err(format!(
+            "A Microsoft não concedeu a permissão solicitada {required_scope}"
+        ));
+    }
+    let refresh_token = token
+        .refresh_token
+        .as_deref()
+        .ok_or_else(|| "A Microsoft não retornou autorização para renovar a sessão".to_string())?;
+    let previous_access = get_token(&previous_account.provider, &account_id, "access")?;
+    let previous_refresh = get_token(&previous_account.provider, &account_id, "refresh")?;
+    save_token(
+        &previous_account.provider,
+        &account_id,
+        "access",
+        &token.access_token,
+    )?;
+    if let Err(error) = save_token(
+        &previous_account.provider,
+        &account_id,
+        "refresh",
+        refresh_token,
+    ) {
+        restore_token(
+            &previous_account.provider,
+            &account_id,
+            "access",
+            previous_access.as_deref(),
+        );
+        return Err(error);
+    }
+    let now = chrono::Utc::now();
+    accounts[index].granted_permissions = permissions;
+    accounts[index].token_expires_at =
+        Some((now + chrono::Duration::seconds(token.expires_in)).to_rfc3339());
+    accounts[index].updated_at = now.to_rfc3339();
+    if let Err(error) = write_accounts(&app, &accounts) {
+        restore_token(
+            &previous_account.provider,
+            &account_id,
+            "access",
+            previous_access.as_deref(),
+        );
+        restore_token(
+            &previous_account.provider,
+            &account_id,
+            "refresh",
+            previous_refresh.as_deref(),
+        );
+        return Err(error);
+    }
+    if include_content {
+        let previous_flags = previous_flags
+            .ok_or_else(|| "Estado de privacidade do Outlook indisponível".to_string())?;
+        let mut flags = previous_flags.clone();
+        flags.outlook_mail_context = true;
+        if let Err(error) = write_flags(&app, &flags) {
+            let _ = write_accounts(
+                &app,
+                &[
+                    accounts[..index].to_vec(),
+                    vec![previous_account.clone()],
+                    accounts[index + 1..].to_vec(),
+                ]
+                .concat(),
+            );
+            let _ = write_flags(&app, &previous_flags);
+            restore_token(
+                &previous_account.provider,
+                &account_id,
+                "access",
+                previous_access.as_deref(),
+            );
+            restore_token(
+                &previous_account.provider,
+                &account_id,
+                "refresh",
+                previous_refresh.as_deref(),
+            );
+            return Err(error);
+        }
+    }
+    Ok(accounts[index].clone())
 }
 
 #[tauri::command]
@@ -1049,6 +1397,171 @@ pub async fn api_list_outlook_events<R: Runtime>(
     }
     events.sort_by(|left, right| left.starts_at.cmp(&right.starts_at));
     Ok(events)
+}
+
+#[tauri::command]
+pub async fn api_search_outlook_mail_context<R: Runtime>(
+    app: AppHandle<R>,
+    account_id: String,
+    participant_emails: Vec<String>,
+    limit: Option<u32>,
+) -> Result<Vec<OutlookMailCandidate>, String> {
+    let account = read_accounts(&app)?
+        .into_iter()
+        .find(|candidate| {
+            candidate.id == account_id && candidate.provider == IntegrationProvider::Microsoft
+        })
+        .ok_or_else(|| "Conta Microsoft não encontrada".to_string())?;
+    if !account
+        .granted_permissions
+        .contains(&ConnectorPermission::MailMetadata)
+        && !account
+            .granted_permissions
+            .contains(&ConnectorPermission::MailContent)
+    {
+        return Err("Autorize Mail.ReadBasic explicitamente antes de pesquisar e-mails".into());
+    }
+    if participant_emails.is_empty() || participant_emails.len() > 20 {
+        return Err("Escolha entre 1 e 20 participantes para pesquisar".into());
+    }
+    let mut participants = participant_emails
+        .iter()
+        .map(|email| validate_mail_search_address(email))
+        .collect::<Result<Vec<_>, _>>()?;
+    participants.sort();
+    participants.dedup();
+    let capped_limit = limit.unwrap_or(25).clamp(1, 50) as usize;
+    let search = format!(
+        "\"{}\"",
+        participants
+            .iter()
+            .map(|email| format!("participants:{email}"))
+            .collect::<Vec<_>>()
+            .join(" OR ")
+    );
+    let access_token = microsoft_access_token(&app, &account_id).await?;
+    let mut url = url::Url::parse("https://graph.microsoft.com/v1.0/me/messages")
+        .map_err(|error| error.to_string())?;
+    url.query_pairs_mut()
+        .append_pair("$search", &search)
+        .append_pair("$top", &capped_limit.min(25).to_string())
+        .append_pair("$select", "id,subject,from,toRecipients,ccRecipients,sentDateTime,receivedDateTime,conversationId,hasAttachments,webLink");
+    let client = reqwest::Client::new();
+    let mut messages = Vec::new();
+    for _ in 0..4 {
+        if url.scheme() != "https" || url.host_str() != Some("graph.microsoft.com") {
+            return Err("A Microsoft retornou uma paginação fora do domínio esperado".into());
+        }
+        let response = client
+            .get(url.clone())
+            .bearer_auth(&access_token)
+            .send()
+            .await
+            .map_err(|error| format!("Falha ao pesquisar e-mails no Outlook: {error}"))?;
+        let status = response.status();
+        let body = response.text().await.map_err(|error| error.to_string())?;
+        if !status.is_success() {
+            return Err(format!(
+                "O Outlook recusou a pesquisa de e-mails: HTTP {status}"
+            ));
+        }
+        let page: GraphMailPage = serde_json::from_str(&body)
+            .map_err(|error| format!("Resposta de e-mail inválida: {error}"))?;
+        for message in page.value {
+            messages.push(normalize_mail_message(message)?);
+            if messages.len() >= capped_limit {
+                break;
+            }
+        }
+        if messages.len() >= capped_limit {
+            break;
+        }
+        let Some(next) = page.next_link else { break };
+        url = url::Url::parse(&next).map_err(|_| "Link de paginação inválido".to_string())?;
+    }
+    Ok(messages)
+}
+
+#[tauri::command]
+pub async fn api_get_selected_outlook_mail<R: Runtime>(
+    app: AppHandle<R>,
+    account_id: String,
+    message_ids: Vec<String>,
+) -> Result<Vec<OutlookSelectedMail>, String> {
+    microsoft_account_with_permission(&app, &account_id, ConnectorPermission::MailContent)?;
+    if message_ids.is_empty() || message_ids.len() > 10 {
+        return Err("Selecione entre 1 e 10 mensagens".into());
+    }
+    let mut unique_ids = Vec::new();
+    for message_id in message_ids {
+        validate_graph_message_id(&message_id)?;
+        if !unique_ids.contains(&message_id) {
+            unique_ids.push(message_id);
+        }
+    }
+    let access_token = microsoft_access_token(&app, &account_id).await?;
+    let client = reqwest::Client::new();
+    let mut selected = Vec::with_capacity(unique_ids.len());
+    for message_id in unique_ids {
+        let mut url = url::Url::parse("https://graph.microsoft.com/v1.0/me/messages/")
+            .map_err(|error| error.to_string())?;
+        url.path_segments_mut()
+            .map_err(|_| "URL de mensagem inválida".to_string())?
+            .pop_if_empty()
+            .push(&message_id);
+        url.query_pairs_mut().append_pair(
+            "$select",
+            "id,subject,from,toRecipients,ccRecipients,sentDateTime,receivedDateTime,conversationId,hasAttachments,webLink,body",
+        );
+        let response = client
+            .get(url)
+            .bearer_auth(&access_token)
+            .header("Prefer", "outlook.body-content-type=\"text\"")
+            .send()
+            .await
+            .map_err(|error| format!("Falha ao ler a mensagem selecionada: {error}"))?;
+        let status = response.status();
+        let body = response.text().await.map_err(|error| error.to_string())?;
+        if !status.is_success() {
+            return Err(format!(
+                "A mensagem selecionada não está mais disponível: HTTP {status}"
+            ));
+        }
+        let mut graph_message: GraphMailMessage = serde_json::from_str(&body)
+            .map_err(|error| format!("Mensagem selecionada inválida: {error}"))?;
+        let message_body = graph_message
+            .body
+            .take()
+            .ok_or_else(|| "A mensagem selecionada não retornou conteúdo".to_string())?;
+        if message_body
+            .content_type
+            .as_deref()
+            .is_some_and(|content_type| !content_type.eq_ignore_ascii_case("text"))
+        {
+            return Err("O Outlook não retornou o conteúdo selecionado como texto".into());
+        }
+        let body_text = message_body.content.unwrap_or_default();
+        let message = normalize_mail_message(graph_message)?;
+        let receipt = ContextSourceReceipt {
+            schema: SCHEMA,
+            source_id: message.id.clone(),
+            source_kind: "mail-message",
+            provider: IntegrationProvider::Microsoft,
+            title: message.subject.clone(),
+            occurred_at: message
+                .sent_at
+                .clone()
+                .or_else(|| message.received_at.clone()),
+            selected_by_user: true,
+            content_included: true,
+        };
+        selected.push(OutlookSelectedMail {
+            message,
+            body_text,
+            source_receipt: receipt,
+        });
+    }
+    Ok(selected)
 }
 
 #[tauri::command]
@@ -1296,5 +1809,47 @@ mod tests {
             normalize_graph_datetime("2026-08-05T15:00:00.0000000").unwrap(),
             "2026-08-05T15:00:00+00:00"
         );
+    }
+
+    #[test]
+    fn microsoft_scopes_expand_progressively_without_write_access() {
+        let calendar = microsoft_scopes_for_permissions(&[ConnectorPermission::CalendarBasic]);
+        assert!(calendar.contains(&"Calendars.ReadBasic"));
+        assert!(!calendar.contains(&"Mail.ReadBasic"));
+        assert!(!calendar.contains(&"Mail.Read"));
+
+        let metadata = microsoft_scopes_for_permissions(&[
+            ConnectorPermission::CalendarBasic,
+            ConnectorPermission::MailMetadata,
+        ]);
+        assert!(metadata.contains(&"Mail.ReadBasic"));
+        assert!(!metadata.contains(&"Mail.Read"));
+
+        let content = microsoft_scopes_for_permissions(&[
+            ConnectorPermission::CalendarBasic,
+            ConnectorPermission::MailMetadata,
+            ConnectorPermission::MailContent,
+        ]);
+        assert!(content.contains(&"Mail.Read"));
+        assert!(!content.contains(&"Mail.ReadBasic"));
+        assert!(content.iter().all(|scope| !scope.contains("ReadWrite")));
+    }
+
+    #[test]
+    fn mail_search_addresses_are_restricted_before_kql_composition() {
+        assert_eq!(
+            validate_mail_search_address("Person.Name+tag@Example.com").unwrap(),
+            "person.name+tag@example.com"
+        );
+        assert!(validate_mail_search_address("person@example.com OR from:boss").is_err());
+        assert!(validate_mail_search_address("person\"@example.com").is_err());
+        assert!(validate_mail_search_address("missing-domain@").is_err());
+    }
+
+    #[test]
+    fn message_ids_allow_provider_values_but_reject_control_characters() {
+        assert!(validate_graph_message_id("AAMkAGVmMDEzLTI=/AQMkAD==").is_ok());
+        assert!(validate_graph_message_id("message\nnext").is_err());
+        assert!(validate_graph_message_id("").is_err());
     }
 }

@@ -76,6 +76,24 @@ export interface PreparedOutlookNote {
   event: OutlookCalendarEvent;
 }
 
+export interface OutlookMailCandidate {
+  id: string;
+  subject: string;
+  sender?: OutlookEventParticipant | null;
+  to: OutlookEventParticipant[];
+  cc: OutlookEventParticipant[];
+  sent_at?: string | null;
+  received_at?: string | null;
+  conversation_id?: string | null;
+  has_attachments: boolean;
+  web_url?: string | null;
+}
+
+export interface OutlookSelectedMail extends OutlookMailCandidate {
+  body_text: string;
+  source_receipt: ContextSourceReceipt;
+}
+
 export interface ParticipantIdentity {
   id: string;
   display_name: string;
