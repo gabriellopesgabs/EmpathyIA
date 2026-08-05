@@ -1403,6 +1403,7 @@ pub async fn api_list_outlook_events<R: Runtime>(
 pub async fn api_search_outlook_mail_context<R: Runtime>(
     app: AppHandle<R>,
     account_id: String,
+    event_id: String,
     participant_emails: Vec<String>,
     limit: Option<u32>,
 ) -> Result<Vec<OutlookMailCandidate>, String> {
@@ -1430,6 +1431,23 @@ pub async fn api_search_outlook_mail_context<R: Runtime>(
         .collect::<Result<Vec<_>, _>>()?;
     participants.sort();
     participants.dedup();
+    let access_token = microsoft_access_token(&app, &account_id).await?;
+    let event = fetch_outlook_event(&access_token, &event_id).await?;
+    let mut allowed_participants = event
+        .attendees
+        .iter()
+        .map(|participant| participant.email.trim().to_ascii_lowercase())
+        .collect::<Vec<_>>();
+    if let Some(organizer) = &event.organizer {
+        allowed_participants.push(organizer.email.trim().to_ascii_lowercase());
+    }
+    allowed_participants.retain(|email| !email.eq_ignore_ascii_case(&account.email));
+    if participants
+        .iter()
+        .any(|email| !allowed_participants.contains(email))
+    {
+        return Err("Pesquise apenas participantes do evento selecionado".into());
+    }
     let capped_limit = limit.unwrap_or(25).clamp(1, 50) as usize;
     let search = format!(
         "\"{}\"",
@@ -1439,7 +1457,6 @@ pub async fn api_search_outlook_mail_context<R: Runtime>(
             .collect::<Vec<_>>()
             .join(" OR ")
     );
-    let access_token = microsoft_access_token(&app, &account_id).await?;
     let mut url = url::Url::parse("https://graph.microsoft.com/v1.0/me/messages")
         .map_err(|error| error.to_string())?;
     url.query_pairs_mut()

@@ -22,6 +22,7 @@ pub struct NoteDocument {
     pub written: bool,
     pub archived: bool,
     pub folder_path: String,
+    pub external_meeting: Option<serde_json::Value>,
     /// Hash of the complete meeting.md used for optimistic concurrency.
     pub content_hash: String,
 }
@@ -175,6 +176,11 @@ pub fn read_note_document(folder: &Path) -> Result<NoteDocument> {
             .to_string()
     };
     let origins = note_origins(&metadata);
+    let external_meeting = metadata
+        .get(origin_value("external_meeting"))
+        .map(serde_json::to_value)
+        .transpose()
+        .context("Failed to read external meeting metadata")?;
     let content_hash = format!("{:x}", Sha256::digest(content.as_bytes()));
     Ok(NoteDocument {
         id: string_value("id"),
@@ -194,6 +200,7 @@ pub fn read_note_document(folder: &Path) -> Result<NoteDocument> {
             .and_then(serde_yaml::Value::as_bool)
             .unwrap_or(false),
         folder_path: folder.to_string_lossy().to_string(),
+        external_meeting,
         content_hash,
     })
 }
@@ -878,6 +885,14 @@ mod tests {
         assert!(markdown.contains("- Maria"));
         assert!(markdown.contains("- outlook"));
         assert!(markdown.contains("Texto do usuário."));
+        let note = read_note_document(dir.path()).unwrap();
+        assert_eq!(
+            note.external_meeting
+                .as_ref()
+                .and_then(|value| value.get("calendar_event_id"))
+                .and_then(serde_json::Value::as_str),
+            Some("event-1")
+        );
     }
 
     #[tokio::test]

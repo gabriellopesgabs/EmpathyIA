@@ -13,8 +13,9 @@ quando uma plataforma exige presença pública contínua ou mídia de reunião.
 ## Invariantes
 
 1. Calendário e e-mail são consentimentos independentes.
-2. E-mail só é consultado após ação explícita e somente na caixa autenticada ou
-   compartilhada que o usuário selecionou de forma inequívoca.
+2. E-mail só é consultado após ação explícita e, na v1, somente na caixa da
+   conta autenticada (`/me/messages`). Caixa compartilhada permanece fora de
+   escopo até existir seleção inequívoca do UPN proprietário.
 3. Nenhum token OAuth, segredo ou corpo de e-mail é salvo em Markdown.
 4. Tokens ficam no cofre de credenciais do sistema operacional.
 5. Toda fonte enviada a um modelo aparece em uma prévia e gera recibo de fonte.
@@ -39,7 +40,7 @@ quando uma plataforma exige presença pública contínua ou mídia de reunião.
 | Capacidade | Estado necessário | Gate |
 | --- | --- | --- |
 | Outlook Calendar | Entra app, OAuth PKCE, `Calendars.ReadBasic` | `outlook_calendar` |
-| Contexto de e-mail | consentimento incremental e mensagem selecionada | `outlook_mail_context` |
+| Contexto de e-mail | `Mail.ReadBasic`, depois `Mail.Read` para mensagens selecionadas | `outlook_mail_context` |
 | Agente Teams | serviço hospedado, app Teams e consentimento do tenant | `teams_agent` |
 | Zoom | aplicação Zoom aprovada e RTMS | `zoom_rtms` |
 | Google Meet | OAuth e APIs REST/Eventos | `google_meet` |
@@ -68,7 +69,25 @@ Client Secret no aplicativo desktop.
 O login usa Authorization Code com PKCE S256 e navegador do sistema. O callback
 escuta uma porta efêmera exclusivamente em `127.0.0.1`, valida `state` e expira
 em cinco minutos. A primeira autorização solicita somente perfil e calendário
-básico. O contexto de e-mail terá uma segunda autorização explícita.
+básico. O contexto de e-mail usa consentimento progressivo:
+
+1. o usuário escolhe participantes do evento concreto;
+2. `Mail.ReadBasic` pesquisa no máximo 25 metadados por consulta, sem corpo;
+3. o usuário escolhe no máximo dez mensagens;
+4. `Mail.Read` é solicitado em um novo login e apenas esses IDs são lidos;
+5. o painel mostra o conteúdo exato e mantém os corpos somente na memória da
+   execução;
+6. o modelo externo exige confirmação adicional; o modelo local não transmite
+   o conteúdo.
+
+O backend busca novamente o evento e rejeita endereços que não pertençam ao
+organizador/convidados, além de excluir o e-mail da própria conta. Consultas,
+IDs e paginação são limitados; links de paginação só são aceitos no domínio
+`graph.microsoft.com`. Nenhuma permissão `Mail.ReadWrite` é solicitada.
+
+Documentos externos entram somente em Skills que declaram essa permissão. Seu
+conteúdo é tratado como dado não confiável, escapado antes da composição do
+prompt e nunca pode substituir a instrução da Skill.
 
 ## Falhas e revogação
 

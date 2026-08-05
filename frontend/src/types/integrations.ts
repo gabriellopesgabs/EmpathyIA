@@ -76,6 +76,20 @@ export interface PreparedOutlookNote {
   event: OutlookCalendarEvent;
 }
 
+export interface OutlookNoteMeetingContext {
+  schema: 1;
+  provider: 'microsoft';
+  account_id: string;
+  calendar_event_id: string;
+  meeting_provider?: 'microsoft-teams' | 'zoom' | 'google-meet' | 'other' | null;
+  starts_at: string;
+  ends_at: string;
+  join_url?: string | null;
+  organizer?: OutlookEventParticipant | null;
+  attendees: OutlookEventParticipant[];
+  linked_at: string;
+}
+
 export interface OutlookMailCandidate {
   id: string;
   subject: string;
