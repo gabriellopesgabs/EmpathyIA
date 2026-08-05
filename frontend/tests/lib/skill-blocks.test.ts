@@ -9,6 +9,13 @@ describe('skill result blocks', () => {
     expect(block).toContain('*Skill (Clarificar pensamento)*');
     expect(parseSkillBlocks(block)[0]).toMatchObject({ id: 'fixed-id', layer: 'individual' });
   });
+  it('preserves transcript provenance in the inserted Markdown block', () => {
+    const transcriptResult = { ...result, source_scope: 'transcript' as const, context_documents: ['note-1', 'note-1:transcript'] };
+    const block = buildSkillResultBlock(transcriptResult, 'Resumo da conversa', 'Conteúdo proposto', 'transcript-id', '2026-08-05T00:00:00Z');
+    expect(block).toContain('source_scope: transcript');
+    expect(block).toContain('note-1:transcript');
+    expect(block).toContain('## Resumo da conversa');
+  });
   it('inserts after an unchanged selection', () => {
     const inserted = insertSkillResult('antes alvo depois', 'BLOCO', { start: 6, end: 10, text: 'alvo' });
     expect(inserted.afterSelection).toBe(true); expect(inserted.content).toContain('alvo\n\nBLOCO');

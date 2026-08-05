@@ -27,10 +27,10 @@ export interface SkillContextRequest {
 export interface SkillRunResult {
   run_id: string; skill_id: string; skill_name: string; layer: SkillLayer;
   title: string; markdown: string; provider: string; model: string;
-  source_scope: 'selection' | 'note'; external: boolean; context_documents: string[];
+  source_scope: 'selection' | 'note' | 'transcript'; external: boolean; context_documents: string[];
 }
 export interface SkillResultMetadata {
   id: string; skill_id: string; skill_name: string; layer: SkillLayer;
-  created_at: string; source_scope: 'selection' | 'note'; provider: string;
+  created_at: string; source_scope: 'selection' | 'note' | 'transcript'; provider: string;
   model: string; context_documents: string[];
 }

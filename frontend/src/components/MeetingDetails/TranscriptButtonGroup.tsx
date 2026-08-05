@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
-import { Copy, FolderOpen, RefreshCw } from 'lucide-react';
+import { Brain, Copy, FolderOpen, RefreshCw } from 'lucide-react';
 import Analytics from '@/lib/analytics';
 import { RetranscribeDialog } from './RetranscribeDialog';
 
@@ -15,6 +15,7 @@ interface TranscriptButtonGroupProps {
   meetingId?: string;
   meetingFolderPath?: string | null;
   onRefetchTranscripts?: () => Promise<void>;
+  onComposeNote?: () => void;
 }
 
 
@@ -25,6 +26,7 @@ export function TranscriptButtonGroup({
   meetingId,
   meetingFolderPath,
   onRefetchTranscripts,
+  onComposeNote,
 }: TranscriptButtonGroupProps) {
   const [showRetranscribeDialog, setShowRetranscribeDialog] = useState(false);
 
@@ -82,6 +84,19 @@ export function TranscriptButtonGroup({
           </Button>
         )}
       </ButtonGroup>
+
+      {onComposeNote && (
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={onComposeNote}
+          disabled={transcriptCount === 0}
+          title="Processar a seleção ou a transcrição completa com uma Skill e incorporar o resultado à nota"
+        >
+          <Brain />
+          <span className="hidden lg:inline">Compor nota</span>
+        </Button>
+      )}
 
       {meetingId && meetingFolderPath && (
         <RetranscribeDialog

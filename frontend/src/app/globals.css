@@ -118,6 +118,8 @@
   .skill-context strong { font-size: 11px; }
   .skill-context small { margin-top: 3px; color: hsl(var(--muted-foreground)); font-size: 10px; }
   .skill-context label { display: flex; align-items: flex-start; gap: 7px; margin-top: 9px; font-size: 11px; }
+  .skill-context-fixed { margin-top: 8px; color: hsl(var(--muted-foreground)); font-size: 10px; line-height: 1.45; }
+  .skill-empty { margin: auto; padding: 20px; text-align: center; color: hsl(var(--muted-foreground)); font-size: 11px; line-height: 1.45; }
   .skill-context details { margin-top: 10px; }
   .skill-context summary, .skill-library summary { cursor: pointer; color: hsl(var(--muted-foreground)); font-size: 10px; }
   .skill-context input { margin-top: 2px; accent-color: hsl(var(--primary)); }

@@ -504,10 +504,14 @@ pub async fn api_run_skill<R: Runtime>(
         .selection
         .as_deref()
         .filter(|v| !v.trim().is_empty());
-    let source = selection.unwrap_or(&context.note);
-    if source.trim().is_empty() {
-        return Err("Não há conteúdo para processar".into());
-    }
+    let transcript = context
+        .transcript
+        .as_deref()
+        .filter(|value| !value.trim().is_empty());
+    let source = selection
+        .or_else(|| (!context.note.trim().is_empty()).then_some(context.note.as_str()))
+        .or(transcript)
+        .ok_or_else(|| "Não há conteúdo para processar".to_string())?;
 
     let config = SettingsRepository::get_model_config(state.db_manager.pool())
         .await
@@ -548,7 +552,7 @@ pub async fn api_run_skill<R: Runtime>(
         context.note_title, source
     );
     let mut documents = vec![context.note_id.clone()];
-    if let Some(transcript) = context.transcript.filter(|v| !v.trim().is_empty()) {
+    if let Some(transcript) = transcript {
         prompt.push_str(&format!("\n\n<transcript>\n{}\n</transcript>", transcript));
         documents.push(format!("{}:transcript", context.note_id));
     }
@@ -601,6 +605,8 @@ pub async fn api_run_skill<R: Runtime>(
                 model: config.model,
                 source_scope: if selection.is_some() {
                     "selection"
+                } else if transcript.is_some() {
+                    "transcript"
                 } else {
                     "note"
                 }
