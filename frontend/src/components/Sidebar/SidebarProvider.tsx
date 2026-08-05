@@ -5,17 +5,9 @@ import { usePathname, useRouter } from 'next/navigation';
 import Analytics from '@/lib/analytics';
 import { invoke } from '@tauri-apps/api/core';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
+import { noteService } from '@/services/noteService';
+import { toast } from 'sonner';
 
-
-interface SidebarItem {
-  id: string;
-  title: string;
-  type: 'folder' | 'file';
-  recorded?: boolean;
-  written?: boolean;
-  archived?: boolean;
-  children?: SidebarItem[];
-}
 
 export interface CurrentMeeting {
   id: string;
@@ -25,18 +17,9 @@ export interface CurrentMeeting {
   archived?: boolean;
 }
 
-// Search result type for transcript search
-interface TranscriptSearchResult {
-  id: string;
-  title: string;
-  matchContext: string;
-  timestamp: string;
-};
-
 interface SidebarContextType {
   currentMeeting: CurrentMeeting | null;
   setCurrentMeeting: (meeting: CurrentMeeting | null) => void;
-  sidebarItems: SidebarItem[];
   isCollapsed: boolean;
   toggleCollapse: () => void;
   meetings: CurrentMeeting[];
@@ -44,13 +27,7 @@ interface SidebarContextType {
   isMeetingActive: boolean;
   setIsMeetingActive: (active: boolean) => void;
   handleRecordingToggle: () => void;
-  searchTranscripts: (query: string) => Promise<void>;
-  searchResults: TranscriptSearchResult[];
-  isSearching: boolean;
-  setServerAddress: (address: string) => void;
   serverAddress: string;
-  transcriptServerAddress: string;
-  setTranscriptServerAddress: (address: string) => void;
   // Summary polling management
   activeSummaryPolls: Map<string, NodeJS.Timeout>;
   startSummaryPolling: (meetingId: string, processId: string, onUpdate: (result: any) => void) => void;
@@ -71,15 +48,11 @@ export const useSidebar = () => {
 };
 
 export function SidebarProvider({ children }: { children: React.ReactNode }) {
-  const [currentMeeting, setCurrentMeeting] = useState<CurrentMeeting | null>({ id: 'intro-call', title: '+ New Call' });
-  const [isCollapsed, setIsCollapsed] = useState(true);
+  const [currentMeeting, setCurrentMeeting] = useState<CurrentMeeting | null>({ id: 'intro-call', title: 'Nova conversa' });
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const [meetings, setMeetings] = useState<CurrentMeeting[]>([]);
-  const [sidebarItems, setSidebarItems] = useState<SidebarItem[]>([]);
   const [isMeetingActive, setIsMeetingActive] = useState(false);
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [serverAddress, setServerAddress] = useState('');
-  const [transcriptServerAddress, setTranscriptServerAddress] = useState('');
+  const serverAddress = 'native';
   const [activeSummaryPolls, setActiveSummaryPolls] = useState<Map<string, NodeJS.Timeout>>(new Map());
 
   // Use recording state from RecordingStateContext (single source of truth)
@@ -90,7 +63,6 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
 
   // Extract fetchMeetings as a reusable function
   const fetchMeetings = React.useCallback(async () => {
-    if (serverAddress) {
       try {
         const meetings = await invoke('api_get_meetings') as Array<{ id: string, title: string, recorded: boolean, written: boolean, archived: boolean }>;
         const transformedMeetings = meetings.map((meeting: any) => ({
@@ -107,38 +79,27 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
         setMeetings([]);
         Analytics.trackBackendConnection(false, error instanceof Error ? error.message : 'Unknown error');
       }
-    }
-  }, [serverAddress]);
+  }, []);
 
   useEffect(() => {
     fetchMeetings();
   }, [serverAddress, fetchMeetings]);
 
   useEffect(() => {
-    const fetchSettings = async () => {
-      setServerAddress('http://localhost:5167');
-      setTranscriptServerAddress('http://127.0.0.1:8178/stream');
-    };
-    fetchSettings();
-  }, []);
+    void noteService.migrateLegacyNotes()
+      .then(count => {
+        if (count === 0) return;
+        void fetchMeetings();
+        toast.success(`${count} ${count === 1 ? 'nota antiga foi migrada' : 'notas antigas foram migradas'} para Markdown`);
+      })
+      .catch(error => toast.error('Não foi possível migrar as notas antigas', { description: String(error) }));
+  }, [fetchMeetings]);
 
-  const baseItems: SidebarItem[] = [
-    {
-      id: 'meetings',
-      title: 'Notas',
-      type: 'folder' as const,
-      children: [
-        ...meetings.map(meeting => ({
-          id: meeting.id,
-          title: meeting.title,
-          recorded: meeting.recorded ?? true,
-          written: meeting.written ?? false,
-          archived: meeting.archived ?? false,
-          type: 'file' as const,
-        }))
-      ]
-    },
-  ];
+  useEffect(() => {
+    const refresh = () => { void fetchMeetings(); };
+    window.addEventListener('notes-changed', refresh);
+    return () => window.removeEventListener('notes-changed', refresh);
+  }, [fetchMeetings]);
 
   useEffect(() => {
     const markWritten = (event: Event) => {
@@ -153,63 +114,31 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
 
-  const toggleCollapse = () => {
-    setIsCollapsed(!isCollapsed);
-  };
+  const toggleCollapse = React.useCallback(() => setIsCollapsed(value => !value), []);
 
   // Update current meeting when on home page
   useEffect(() => {
     if (pathname === '/') {
-      setCurrentMeeting({ id: 'intro-call', title: '+ New Call' });
+      setCurrentMeeting({ id: 'intro-call', title: 'Nova conversa' });
     }
-    setSidebarItems(baseItems);
   }, [pathname]);
-
-  // Update sidebar items when meetings change
-  useEffect(() => {
-    setSidebarItems(baseItems);
-  }, [meetings]);
 
   // Function to handle recording toggle from sidebar
   const handleRecordingToggle = () => {
-    if (!isRecording) {
-      // Check if already on home page
-      if (pathname === '/') {
-        // Already on home - trigger recording directly via custom event
-        console.log('Triggering recording from sidebar (already on home page)');
-        window.dispatchEvent(new CustomEvent('start-recording-from-sidebar'));
-      } else {
-        // Not on home - navigate and use auto-start mechanism
-        console.log('Navigating to home page with auto-start flag');
-        sessionStorage.setItem('autoStartRecording', 'true');
-        router.push('/');
-      }
-
-      // Track recording initiation from sidebar
-      Analytics.trackButtonClick('start_recording', 'sidebar');
-    }
-    // The actual recording start/stop is handled in the Home component
-  };
-
-  // Function to search through meeting transcripts
-  const searchTranscripts = async (query: string) => {
-    if (!query.trim()) {
-      setSearchResults([]);
+    if (isRecording) {
+      const stopRecording = (window as Window & { handleRecordingStop?: (callApi?: boolean) => void }).handleRecordingStop;
+      stopRecording?.(true);
+      Analytics.trackButtonClick('stop_recording', 'sidebar');
       return;
     }
 
-    try {
-      setIsSearching(true);
-
-
-      const results = await invoke('api_search_transcripts', { query }) as TranscriptSearchResult[];
-      setSearchResults(results);
-    } catch (error) {
-      console.error('Error searching transcripts:', error);
-      setSearchResults([]);
-    } finally {
-      setIsSearching(false);
+    if (pathname === '/') {
+      window.dispatchEvent(new CustomEvent('start-recording-from-sidebar'));
+    } else {
+      sessionStorage.setItem('autoStartRecording', 'true');
+      router.push('/');
     }
+    Analytics.trackButtonClick('start_recording', 'sidebar');
   };
 
   // Summary polling management
@@ -321,7 +250,6 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
     <SidebarContext.Provider value={{
       currentMeeting,
       setCurrentMeeting,
-      sidebarItems,
       isCollapsed,
       toggleCollapse,
       meetings,
@@ -329,13 +257,7 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
       isMeetingActive,
       setIsMeetingActive,
       handleRecordingToggle,
-      searchTranscripts,
-      searchResults,
-      isSearching,
-      setServerAddress,
       serverAddress,
-      transcriptServerAddress,
-      setTranscriptServerAddress,
       activeSummaryPolls,
       startSummaryPolling,
       stopSummaryPolling,

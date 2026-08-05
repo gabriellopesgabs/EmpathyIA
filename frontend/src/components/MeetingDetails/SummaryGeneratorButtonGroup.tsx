@@ -75,8 +75,8 @@ export function SummaryGeneratorButtonGroup({
 
       // Check if specific model is configured
       if (!selectedModel) {
-        toast.error('No built-in AI model selected', {
-          description: 'Please select a model in settings',
+        toast.error('Nenhum modelo de IA selecionado', {
+          description: 'Selecione um modelo em Configurações.',
           duration: 5000,
         });
         openModelSettings();
@@ -101,8 +101,8 @@ export function SummaryGeneratorButtonGroup({
       });
 
       if (!modelInfo) {
-        toast.error('Model not found', {
-          description: `Could not find information for model: ${selectedModel}`,
+        toast.error('Modelo não encontrado', {
+          description: `Não encontramos informações sobre ${selectedModel}.`,
           duration: 5000,
         });
         openModelSettings();
@@ -113,16 +113,16 @@ export function SummaryGeneratorButtonGroup({
       const status = modelInfo.status;
 
       if (status.type === 'downloading') {
-        toast.info('Model download in progress', {
-          description: `${selectedModel} is downloading (${status.progress}%). Please wait until download completes.`,
+        toast.info('Download do modelo em andamento', {
+          description: `${selectedModel}: ${status.progress}%. Aguarde a conclusão.`,
           duration: 5000,
         });
         return;
       }
 
       if (status.type === 'not_downloaded') {
-        toast.error('Model not downloaded', {
-          description: `${selectedModel} needs to be downloaded before use. Opening model settings...`,
+        toast.error('Modelo ainda não baixado', {
+          description: `${selectedModel} precisa ser baixado antes do uso.`,
           duration: 5000,
         });
         openModelSettings();
@@ -130,8 +130,8 @@ export function SummaryGeneratorButtonGroup({
       }
 
       if (status.type === 'corrupted') {
-        toast.error('Model file corrupted', {
-          description: `${selectedModel} file is corrupted. Please delete and re-download.`,
+        toast.error('Arquivo do modelo corrompido', {
+          description: `Exclua ${selectedModel} e faça o download novamente.`,
           duration: 7000,
         });
         openModelSettings();
@@ -139,8 +139,8 @@ export function SummaryGeneratorButtonGroup({
       }
 
       if (status.type === 'error') {
-        toast.error('Model error', {
-          description: status.Error || 'An error occurred with the model',
+        toast.error('Erro no modelo', {
+          description: status.Error || 'Ocorreu um erro com o modelo.',
           duration: 5000,
         });
         openModelSettings();
@@ -148,15 +148,15 @@ export function SummaryGeneratorButtonGroup({
       }
 
       // Fallback
-      toast.error('Model not available', {
-        description: 'The selected model is not ready for use',
+      toast.error('Modelo indisponível', {
+        description: 'O modelo selecionado ainda não está pronto para uso.',
         duration: 5000,
       });
       openModelSettings();
 
     } catch (error) {
       console.error('Error checking built-in AI models:', error);
-      toast.error('Failed to check model status', {
+      toast.error('Não foi possível verificar o modelo', {
         description: error instanceof Error ? error.message : String(error),
         duration: 5000,
       });
@@ -186,7 +186,7 @@ export function SummaryGeneratorButtonGroup({
       if (!models || models.length === 0) {
         // No models available, show message and open settings
         toast.error(
-          'No Ollama models found. Please download gemma2:2b from Model Settings.',
+          'Nenhum modelo do Ollama foi encontrado. Baixe um modelo em Configurações.',
           { duration: 5000 }
         );
         openModelSettings();
@@ -202,12 +202,12 @@ export function SummaryGeneratorButtonGroup({
       if (isOllamaNotInstalledError(errorMessage)) {
         // Ollama is not installed - show specific message with download link
         toast.error(
-          'Ollama is not installed',
+          'Ollama não está instalado',
           {
-            description: 'Please download and install Ollama to use local models.',
+            description: 'Instale o Ollama para usar modelos locais.',
             duration: 7000,
             action: {
-              label: 'Download',
+              label: 'Baixar',
               onClick: () => invoke('open_external_url', { url: 'https://ollama.com/download' })
             }
           }
@@ -215,7 +215,7 @@ export function SummaryGeneratorButtonGroup({
       } else {
         // Other error - generic message
         toast.error(
-          'Failed to check Ollama models. Please check if Ollama is running and download a model.',
+          'Não foi possível verificar o Ollama. Confirme se ele está em execução e se há um modelo baixado.',
           { duration: 5000 }
         );
       }

@@ -95,7 +95,7 @@ export function ImportAudioDialog({
   } = useTranscriptionModels(transcriptModelConfig);
 
   const handleImportComplete = useCallback((result: ImportResult) => {
-    toast.success(`Import complete! ${result.segments_count} segments created.`);
+    toast.success(`Importação concluída: ${result.segments_count} trechos criados.`);
 
     // Refresh meetings list then navigate to the imported meeting
     refetchMeetings();
@@ -105,7 +105,7 @@ export function ImportAudioDialog({
   }, [router, refetchMeetings, onComplete, onOpenChange]);
 
   const handleImportError = useCallback((error: string) => {
-    toast.error('Import failed', { description: error });
+    toast.error('Falha na importação', { description: error });
   }, []);
 
   const {

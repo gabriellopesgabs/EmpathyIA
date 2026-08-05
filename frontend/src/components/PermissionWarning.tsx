@@ -61,7 +61,7 @@ export function PermissionWarning({
             <div className="flex items-center gap-2">
               {!hasMicrophone && <Mic className="h-4 w-4" />}
               {!hasSystemAudio && <Speaker className="h-4 w-4" />}
-              {!hasMicrophone && !hasSystemAudio ? 'Permissions Required' : !hasMicrophone ? 'Microphone Permission Required' : 'System Audio Permission Required'}
+              {!hasMicrophone && !hasSystemAudio ? 'Permissões necessárias' : !hasMicrophone ? 'Permissão do microfone necessária' : 'Permissão do áudio do sistema necessária'}
             </div>
           </AlertTitle>
           {/* Action Buttons */}
@@ -72,7 +72,7 @@ export function PermissionWarning({
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-md transition-colors"
               >
                 <Mic className="h-4 w-4" />
-                Open Microphone Settings
+                Abrir ajustes do microfone
               </button>
             )}
             {isMacOS && !hasSystemAudio && (
@@ -81,7 +81,7 @@ export function PermissionWarning({
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
               >
                 <Speaker className="h-4 w-4" />
-                Open Screen Recording Settings
+                Abrir ajustes de captura
               </button>
             )}
             <button
@@ -90,7 +90,7 @@ export function PermissionWarning({
               className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-amber-900 bg-amber-100 hover:bg-amber-200 rounded-md transition-colors disabled:opacity-50"
             >
               <RefreshCw className={`h-4 w-4 ${isRechecking ? 'animate-spin' : ''}`} />
-              Recheck
+              Verificar novamente
             </button>
           </div>
           <AlertDescription className="text-amber-800 mt-2">
@@ -98,14 +98,14 @@ export function PermissionWarning({
             {!hasMicrophone && (
               <>
                 <p className="mb-3">
-                  Empathy.AI needs access to your microphone to record meetings. No microphone devices were detected.
+                  O Empathy precisa acessar o microfone para gravar. Nenhum dispositivo de entrada foi detectado.
                 </p>
                 <div className="space-y-2 text-sm mb-4">
-                  <p className="font-medium">Please check:</p>
+                  <p className="font-medium">Verifique se:</p>
                   <ul className="list-disc list-inside ml-2 space-y-1">
-                    <li>Your microphone is connected and powered on</li>
-                    <li>Microphone permission is granted in System Settings</li>
-                    <li>No other app is exclusively using the microphone</li>
+                    <li>o microfone está conectado e ligado;</li>
+                    <li>a permissão foi concedida nos Ajustes do Sistema;</li>
+                    <li>nenhum outro app está usando o microfone com exclusividade.</li>
                   </ul>
                 </div>
               </>
@@ -116,16 +116,16 @@ export function PermissionWarning({
               <>
                 <p className="mb-3">
                   {hasMicrophone
-                    ? 'System audio capture is not available. You can still record with your microphone, but computer audio won\'t be captured.'
-                    : 'System audio capture is also not available.'}
+                    ? 'A captura do áudio do sistema não está disponível. Você ainda pode usar o microfone, mas o som do computador não será gravado.'
+                    : 'A captura do áudio do sistema também não está disponível.'}
                 </p>
                 {isMacOS && (
                   <div className="space-y-2 text-sm mb-4">
-                    <p className="font-medium">To enable system audio on macOS:</p>
+                    <p className="font-medium">Para ativar o áudio do sistema no macOS:</p>
                     <ul className="list-disc list-inside ml-2 space-y-1">
-                      <li>Install a virtual audio device (e.g., BlackHole 2ch)</li>
-                      <li>Grant Screen Recording permission to Empathy.AI</li>
-                      <li>Configure your audio routing in Audio MIDI Setup</li>
+                      <li>instale um dispositivo de áudio virtual, como BlackHole 2ch;</li>
+                      <li>conceda ao Empathy a permissão de captura de tela e áudio;</li>
+                      <li>configure o roteamento no app Configuração de Áudio e MIDI.</li>
                     </ul>
                   </div>
                 )}

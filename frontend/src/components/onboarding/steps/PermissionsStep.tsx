@@ -32,7 +32,7 @@ export function PermissionsStep() {
       try {
         await invoke('open_system_settings');
       } catch {
-        alert('Please enable microphone access in System Preferences > Security & Privacy > Microphone');
+        alert('Ative o acesso ao microfone em Ajustes do Sistema → Privacidade e Segurança → Microfone');
       }
       return;
     }
@@ -64,7 +64,7 @@ export function PermissionsStep() {
       try {
         await invoke('open_system_settings');
       } catch {
-        alert('Please enable Audio Capture in System Settings → Privacy & Security → Audio Capture');
+        alert('Ative a captura de áudio em Ajustes do Sistema → Privacidade e Segurança → Captura de Áudio');
       }
       return;
     }

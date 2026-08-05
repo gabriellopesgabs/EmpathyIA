@@ -1,24 +1,24 @@
 'use client';
 
-import React from 'react';
-import { useSidebar } from '@/components/Sidebar/SidebarProvider';
+import React, { useEffect, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 
 interface MainContentProps {
   children: React.ReactNode;
 }
 
 const MainContent: React.FC<MainContentProps> = ({ children }) => {
-  const { isCollapsed } = useSidebar();
+  const pathname = usePathname();
+  const contentRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    contentRef.current?.querySelectorAll<HTMLElement>('.document-scroll, .knowledge-shell, .settings-content')
+      .forEach(element => element.scrollTo({ top: 0, left: 0 }));
+  }, [pathname]);
 
   return (
-    <main 
-      className={`flex-1 transition-all duration-300 ${
-        isCollapsed ? 'ml-16' : 'ml-64'
-      }`}
-    >
-      <div className="pl-8">
-        {children}
-      </div>
+    <main ref={contentRef} className="app-content">
+      {children}
     </main>
   );
 };

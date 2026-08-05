@@ -1,7 +1,6 @@
 "use client";
 
 import { Summary, SummaryResponse, Transcript } from '@/types';
-import { EditableTitle } from '@/components/EditableTitle';
 import { BlockNoteSummaryView, BlockNoteSummaryViewRef } from '@/components/AISummary/BlockNoteSummaryView';
 import { EmptyStateSummary } from '@/components/EmptyStateSummary';
 import { ModelConfig } from '@/components/ModelSettingsModal';
@@ -27,6 +26,10 @@ import {
 } from '@/lib/summary-language-preferences';
 
 interface SummaryPanelProps {
+  view?: 'summary' | 'graph';
+  showViewSelector?: boolean;
+  showProperties?: boolean;
+  showRelated?: boolean;
   meeting: {
     id: string;
     title: string;
@@ -67,6 +70,10 @@ interface SummaryPanelProps {
 }
 
 export function SummaryPanel({
+  view,
+  showViewSelector = true,
+  showProperties = true,
+  showRelated = true,
   meeting,
   meetingTitle,
   onTitleChange,
@@ -101,7 +108,8 @@ export function SummaryPanel({
   isModelConfigLoading = false,
   onOpenModelSettings
 }: SummaryPanelProps) {
-  const [activeView, setActiveView] = useState<'summary' | 'graph'>('summary');
+  const [internalView, setInternalView] = useState<'summary' | 'graph'>('summary');
+  const activeView = view ?? internalView;
   const [summaryLang, setSummaryLang] = useState<string | null>(null);
   const [summaryLangStorage, setSummaryLangStorage] = useState<SummaryLanguageStorage>('metadata');
   const [langPickerOpen, setLangPickerOpen] = useState(false);
@@ -192,7 +200,7 @@ export function SummaryPanel({
             activeMeetingIdRef.current === request.meetingId
           ) {
             console.error('Failed to persist summary language:', err);
-            toast.error('Failed to save summary language');
+            toast.error('Não foi possível salvar o idioma do resumo');
             setSummaryLang(request.rollback.language);
             setSummaryLangStorage(request.rollback.storage);
             return;
@@ -262,17 +270,17 @@ export function SummaryPanel({
   );
 
   return (
-    <div className="flex-1 min-w-0 flex flex-col bg-white overflow-hidden">
+    <div className="flex-1 min-w-0 flex flex-col bg-card overflow-hidden">
       {/* Title area */}
       <div className="p-4 border-b border-gray-200">
-        <div className="mb-3 flex items-center justify-center gap-1" role="tablist" aria-label="Visualizações da nota salva">
+        {showViewSelector && <div className="mb-3 flex items-center justify-center gap-1" role="tablist" aria-label="Visualizações da nota salva">
           <Button
             type="button"
             size="sm"
             variant={activeView === 'summary' ? 'secondary' : 'ghost'}
             role="tab"
             aria-selected={activeView === 'summary'}
-            onClick={() => setActiveView('summary')}
+            onClick={() => setInternalView('summary')}
           >
             <FileText /> Resumo
           </Button>
@@ -282,11 +290,11 @@ export function SummaryPanel({
             variant={activeView === 'graph' ? 'secondary' : 'ghost'}
             role="tab"
             aria-selected={activeView === 'graph'}
-            onClick={() => setActiveView('graph')}
+            onClick={() => setInternalView('graph')}
           >
             <Network /> Grafo
           </Button>
-        </div>
+        </div>}
         {/* <EditableTitle
           title={meetingTitle}
           isEditing={isEditingTitle}
@@ -336,7 +344,7 @@ export function SummaryPanel({
             </div>
           </div>
         )}
-        <MeetingPropertiesEditor meetingId={meeting.id} />
+        {showProperties && <MeetingPropertiesEditor meetingId={meeting.id} />}
       </div>
 
       {activeView === 'graph' ? (
@@ -467,7 +475,7 @@ export function SummaryPanel({
               }}
             />
           </div>
-          <RelatedMeetings meetingId={meeting.id} />
+          {showRelated && <RelatedMeetings meetingId={meeting.id} />}
           {summaryStatus !== 'idle' && (
             <div className={`mt-4 p-4 rounded-lg ${summaryStatus === 'error' ? 'bg-red-100 text-red-700' :
               summaryStatus === 'completed' ? 'bg-green-100 text-green-700' :

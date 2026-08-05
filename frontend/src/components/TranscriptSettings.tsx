@@ -57,10 +57,6 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
         }
     };
 
-    useEffect(() => {
-        runHardwareBenchmark();
-    }, []);
-
     const [uiProvider, setUiProvider] = useState<TranscriptModelProps['provider']>(transcriptModelConfig.provider);
 
     // Sync uiProvider when backend config changes (e.g., after model selection or initial load)
@@ -133,25 +129,26 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
     return (
         <div className="space-y-6">
             {/* Hardware Benchmark & Recommendation Card */}
-            <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-xl p-4 shadow-md border border-slate-700/80 mb-5">
+            <div className="rounded-lg border bg-card p-4 mb-5">
                 <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                        <div className="p-1.5 rounded-lg bg-blue-500/20 text-blue-400">
+                        <div className="p-1.5 rounded-lg bg-accent text-accent-foreground">
                             <Cpu className="w-5 h-5" />
                         </div>
                         <div>
-                            <h4 className="font-semibold text-sm">Diagnóstico do Hardware do Mac</h4>
-                            <p className="text-xs text-slate-400">Análise de CPU, RAM e GPU para indicar o melhor modelo de Transcrição e LLM</p>
+                            <h4 className="font-semibold text-sm">Recomendação automática</h4>
+                            <p className="text-xs text-muted-foreground">O Empathy pode avaliar este dispositivo e recomendar o modelo local adequado.</p>
                         </div>
                     </div>
                     <Button
                         onClick={runHardwareBenchmark}
                         disabled={isTestingHardware}
                         size="sm"
-                        className="text-xs font-semibold bg-white hover:bg-slate-100 text-slate-900 shadow-sm border border-slate-200"
+                        variant="outline"
+                        className="text-xs font-semibold"
                     >
                         <RefreshCw className={`w-3.5 h-3.5 mr-1.5 text-blue-600 ${isTestingHardware ? 'animate-spin' : ''}`} />
-                        {isTestingHardware ? 'Testando...' : 'Testar Hardware'}
+                        {isTestingHardware ? 'Analisando…' : 'Analisar dispositivo'}
                     </Button>
                 </div>
 
@@ -159,7 +156,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                     <div className="mt-3 pt-3 border-t border-slate-700/60 space-y-3">
                         <div className="grid grid-cols-4 gap-2 text-center text-xs">
                             <div className="bg-slate-800/80 p-2 rounded-lg border border-slate-700/40">
-                                <span className="text-slate-400 block text-[10px]">CPU Cores</span>
+                                <span className="text-slate-400 block text-[10px]">Processador</span>
                                 <span className="font-bold text-slate-100">{hardwareRec.cpu_cores} núcleos</span>
                             </div>
                             <div className="bg-slate-800/80 p-2 rounded-lg border border-slate-700/40">
@@ -167,13 +164,13 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                                 <span className="font-bold text-blue-400 truncate block">{hardwareRec.gpu_type}</span>
                             </div>
                             <div className="bg-slate-800/80 p-2 rounded-lg border border-slate-700/40">
-                                <span className="text-slate-400 block text-[10px]">Tier Performance</span>
+                                <span className="text-slate-400 block text-[10px]">Desempenho</span>
                                 <span className="font-bold text-emerald-400">{hardwareRec.performance_tier}</span>
                             </div>
                             <div className="bg-slate-800/80 p-2 rounded-lg border border-slate-700/40">
                                 <span className="text-slate-400 block text-[10px]">Aceleração GPU</span>
                                 <span className={`font-bold ${hardwareRec.has_gpu_acceleration ? 'text-emerald-400' : 'text-amber-400'}`}>
-                                    {hardwareRec.has_gpu_acceleration ? 'Ativa ⚡' : 'CPU Only'}
+                                    {hardwareRec.has_gpu_acceleration ? 'Ativa' : 'Somente CPU'}
                                 </span>
                             </div>
                         </div>
@@ -215,11 +212,11 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                                 }}
                             >
                                 <SelectTrigger className='focus:ring-1 focus:ring-blue-500 focus:border-blue-500'>
-                                    <SelectValue placeholder="Select provider" />
+                                    <SelectValue placeholder="Escolher mecanismo" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="parakeet">⚡ Parakeet (Recommended - Real-time / Accurate)</SelectItem>
-                                    <SelectItem value="localWhisper">🏠 Local Whisper (High Accuracy)</SelectItem>
+                                    <SelectItem value="parakeet">Parakeet — recomendado para tempo real</SelectItem>
+                                    <SelectItem value="localWhisper">Whisper local — maior precisão</SelectItem>
                                     {/* <SelectItem value="deepgram">☁️ Deepgram (Backup)</SelectItem>
                                     <SelectItem value="elevenLabs">☁️ ElevenLabs</SelectItem>
                                     <SelectItem value="groq">☁️ Groq</SelectItem>
@@ -236,7 +233,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                                     }}
                                 >
                                     <SelectTrigger className='focus:ring-1 focus:ring-blue-500 focus:border-blue-500'>
-                                        <SelectValue placeholder="Select model" />
+                                        <SelectValue placeholder="Escolher modelo" />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {modelOptions[uiProvider].map((model) => (
@@ -283,7 +280,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                                     onChange={(e) => setApiKey(e.target.value)}
                                     disabled={isApiKeyLocked}
                                     onClick={handleInputClick}
-                                    placeholder="Enter your API key"
+                                    placeholder="Insira sua chave de API"
                                 />
                                 {isApiKeyLocked && (
                                     <div
@@ -320,8 +317,6 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
         </div >
     )
 }
-
-
 
 
 

@@ -2,7 +2,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Summary, SummaryResponse } from '@/types';
-import { useSidebar } from '@/components/Sidebar/SidebarProvider';
 import Analytics from '@/lib/analytics';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
@@ -17,6 +16,10 @@ import { useTemplates } from '@/hooks/meeting-details/useTemplates';
 import { useCopyOperations } from '@/hooks/meeting-details/useCopyOperations';
 import { useMeetingOperations } from '@/hooks/meeting-details/useMeetingOperations';
 import { useConfig } from '@/contexts/ConfigContext';
+import { FileText, Info, Network, ScrollText } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { MeetingPropertiesEditor } from '@/components/MeetingDetails/MeetingPropertiesEditor';
+import { RelatedMeetings } from '@/components/MeetingDetails/RelatedMeetings';
 
 export default function PageContent({
   meeting,
@@ -57,12 +60,11 @@ export default function PageContent({
   const [customPrompt, setCustomPrompt] = useState<string>('');
   const [isRecording] = useState(false);
   const [summaryResponse] = useState<SummaryResponse | null>(null);
+  const [activeView, setActiveView] = useState<'transcript' | 'summary' | 'graph'>('transcript');
+  const [showInspector, setShowInspector] = useState(false);
 
   // Ref to store the modal open function from SummaryGeneratorButtonGroup
   const openModelSettingsRef = useRef<(() => void) | null>(null);
-
-  // Sidebar context
-  const { serverAddress } = useSidebar();
 
   // Get model config from ConfigContext
   const { modelConfig, setModelConfig } = useConfig();
@@ -168,10 +170,26 @@ export default function PageContent({
       initial={{ opacity: 1, y: 0 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
-      className="flex flex-col h-screen bg-gray-50"
+      className="document-surface"
     >
-      <div className="flex flex-1 overflow-hidden">
-        <TranscriptPanel
+      <header className="document-toolbar">
+        <input
+          className="min-w-0 max-w-sm flex-1 truncate border-0 bg-transparent text-sm font-semibold outline-none"
+          value={meetingData.meetingTitle}
+          onChange={event => meetingData.handleTitleChange(event.target.value)}
+          onBlur={() => meetingData.isTitleDirty && void meetingData.saveAllChanges()}
+          aria-label="Título da nota"
+        />
+        <div className="segmented-control" role="tablist" aria-label="Conteúdo da nota gravada">
+          <button type="button" role="tab" data-active={activeView === 'transcript'} aria-selected={activeView === 'transcript'} onClick={() => setActiveView('transcript')}><ScrollText />Transcrição</button>
+          <button type="button" role="tab" data-active={activeView === 'summary'} aria-selected={activeView === 'summary'} onClick={() => setActiveView('summary')}><FileText />Resumo</button>
+          <button type="button" role="tab" data-active={activeView === 'graph'} aria-selected={activeView === 'graph'} onClick={() => setActiveView('graph')}><Network />Grafo</button>
+        </div>
+        <Button variant={showInspector ? 'secondary' : 'ghost'} size="icon" onClick={() => setShowInspector(value => !value)} aria-label="Mostrar informações da nota"><Info /></Button>
+      </header>
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <div className="min-w-0 flex-1">
+        {activeView === 'transcript' ? <TranscriptPanel
           transcripts={meetingData.transcripts}
           customPrompt={customPrompt}
           onPromptChange={setCustomPrompt}
@@ -191,8 +209,11 @@ export default function PageContent({
           meetingId={meeting.id}
           meetingFolderPath={meeting.folder_path}
           onRefetchTranscripts={onRefetchTranscripts}
-        />
-        <SummaryPanel
+        /> : <SummaryPanel
+          view={activeView === 'graph' ? 'graph' : 'summary'}
+          showViewSelector={false}
+          showProperties={false}
+          showRelated={false}
           meeting={meeting}
           meetingTitle={meetingData.meetingTitle}
           onTitleChange={meetingData.handleTitleChange}
@@ -226,7 +247,15 @@ export default function PageContent({
           onTemplateSelect={templates.handleTemplateSelection}
           isModelConfigLoading={false}
           onOpenModelSettings={handleRegisterModalOpen}
-        />
+        />}
+        </div>
+        {showInspector && (
+          <aside className="note-inspector">
+            <div><p className="eyebrow">Informações</p><h2>{meetingData.meetingTitle}</h2></div>
+            <MeetingPropertiesEditor meetingId={meeting.id} />
+            <RelatedMeetings meetingId={meeting.id} />
+          </aside>
+        )}
       </div>
     </motion.div>
   );

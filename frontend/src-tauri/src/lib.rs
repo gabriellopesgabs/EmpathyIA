@@ -57,7 +57,7 @@ use audio::{list_audio_devices, trigger_audio_permission, AudioDevice};
 use log::{error as log_error, info as log_info};
 use notifications::commands::NotificationManagerState;
 use std::sync::Arc;
-use tauri::{AppHandle, Manager, Runtime};
+use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tokio::sync::RwLock;
 
 static RECORDING_FLAG: AtomicBool = AtomicBool::new(false);
@@ -412,6 +412,65 @@ pub fn run() {
         .setup(|_app| {
             log::info!("Application setup complete");
 
+            let settings_item = tauri::menu::MenuItemBuilder::with_id("settings", "Configurações…")
+                .accelerator("CmdOrCtrl+,")
+                .build(_app)?;
+            let new_note_item = tauri::menu::MenuItemBuilder::with_id("new_note", "Nova nota")
+                .accelerator("CmdOrCtrl+N")
+                .build(_app)?;
+            let record_item = tauri::menu::MenuItemBuilder::with_id("record", "Nova gravação")
+                .accelerator("CmdOrCtrl+Shift+R")
+                .build(_app)?;
+            let import_item =
+                tauri::menu::MenuItemBuilder::with_id("import_audio", "Importar áudio…")
+                    .accelerator("CmdOrCtrl+O")
+                    .build(_app)?;
+            let search_item = tauri::menu::MenuItemBuilder::with_id("search", "Buscar")
+                .accelerator("CmdOrCtrl+K")
+                .build(_app)?;
+            let knowledge_item = tauri::menu::MenuItemBuilder::with_id("knowledge", "Conhecimento")
+                .accelerator("CmdOrCtrl+Shift+K")
+                .build(_app)?;
+            let sidebar_item = tauri::menu::MenuItemBuilder::with_id(
+                "toggle_sidebar",
+                "Mostrar ou ocultar barra lateral",
+            )
+            .accelerator("CmdOrCtrl+Alt+S")
+            .build(_app)?;
+            let app_menu = tauri::menu::SubmenuBuilder::new(_app, "Empathy")
+                .about(None)
+                .separator()
+                .item(&settings_item)
+                .separator()
+                .quit_with_text("Sair do Empathy")
+                .build()?;
+            let file_menu = tauri::menu::SubmenuBuilder::new(_app, "Arquivo")
+                .items(&[&new_note_item, &record_item])
+                .separator()
+                .item(&import_item)
+                .separator()
+                .close_window_with_text("Fechar janela")
+                .build()?;
+            let edit_menu = tauri::menu::SubmenuBuilder::new(_app, "Editar")
+                .undo_with_text("Desfazer")
+                .redo_with_text("Refazer")
+                .separator()
+                .cut_with_text("Recortar")
+                .copy_with_text("Copiar")
+                .paste_with_text("Colar")
+                .select_all_with_text("Selecionar tudo")
+                .build()?;
+            let view_menu = tauri::menu::SubmenuBuilder::new(_app, "Visualizar")
+                .items(&[&search_item, &knowledge_item, &sidebar_item])
+                .build()?;
+            let menu = tauri::menu::MenuBuilder::new(_app)
+                .items(&[&app_menu, &file_menu, &edit_menu, &view_menu])
+                .build()?;
+            _app.set_menu(menu)?;
+            _app.on_menu_event(|app, event| {
+                let _ = app.emit("app-menu-command", event.id().as_ref());
+            });
+
             // Initialize system tray
             if let Err(e) = tray::create_tray(_app.handle()) {
                 log::error!("Failed to create system tray: {}", e);
@@ -635,6 +694,9 @@ pub fn run() {
             anthropic::anthropic::get_anthropic_models,
             groq::groq::get_groq_models,
             api::api_get_meetings,
+            api::api_create_note,
+            api::api_get_note,
+            api::api_save_note,
             api::api_search_transcripts,
             api::api_get_profile,
             api::api_save_profile,

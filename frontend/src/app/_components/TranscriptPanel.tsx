@@ -86,9 +86,9 @@ export function TranscriptPanel({
   );
 
   return (
-    <div className="w-full border-r border-gray-200 bg-white flex flex-col overflow-hidden">
+    <div className="live-transcript-panel w-full flex flex-col overflow-hidden">
       {/* Title area - Sticky header */}
-      <div className="sticky top-0 z-10 bg-white p-4 border-gray-200">
+      <div className="live-view-toolbar sticky top-0 z-10 p-3">
         <div className="flex flex-col space-y-3">
           <div className="flex  flex-col space-y-2">
             <div className="flex justify-center  items-center space-x-2">
@@ -98,11 +98,11 @@ export function TranscriptPanel({
                     variant="outline"
                     size="sm"
                     onClick={copyTranscript}
-                    title="Copy Transcript"
+                    title="Copiar transcrição"
                   >
                     <Copy />
                     <span className='hidden md:inline'>
-                      Copy
+                      Copiar
                     </span>
                   </Button>
                 )}
@@ -111,11 +111,11 @@ export function TranscriptPanel({
                     variant="outline"
                     size="sm"
                     onClick={() => showModal('languageSettings')}
-                    title="Language"
+                    title="Idioma"
                   >
                     <GlobeIcon />
                     <span className='hidden md:inline'>
-                      Language
+                      Idioma
                     </span>
                   </Button>
                 }
@@ -125,7 +125,7 @@ export function TranscriptPanel({
                   <FileText /><span className="hidden lg:inline">Transcrição</span>
                 </Button>
                 <Button variant={viewMode === 'split' ? 'secondary' : 'outline'} size="sm" onClick={() => changeView('split')} title="Transcrição e grafo">
-                  <Columns2 /><span className="hidden lg:inline">Dividido</span>
+                  <Columns2 /><span className="hidden lg:inline">Lado a lado</span>
                 </Button>
                 <Button variant={viewMode === 'graph' ? 'secondary' : 'outline'} size="sm" onClick={() => changeView('graph')} title="Grafo ao vivo">
                   <Network /><span className="hidden lg:inline">Grafo</span>
@@ -155,7 +155,7 @@ export function TranscriptPanel({
           </div>
         )}
         {viewMode !== 'transcript' && (
-          <div className="h-full overflow-y-auto border-l bg-slate-50 p-3 dark:bg-gray-950">
+          <div className="live-graph-pane h-full overflow-y-auto p-3">
             <KnowledgeGraphView
               graph={liveGraph}
               title="Temas da conversa"
