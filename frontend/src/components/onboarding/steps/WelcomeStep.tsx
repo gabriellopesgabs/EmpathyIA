@@ -1,4 +1,5 @@
 import React from 'react';
+import Image from 'next/image';
 import { Lock, Sparkles, Cpu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { OnboardingContainer } from '../OnboardingContainer';
@@ -30,6 +31,15 @@ export function WelcomeStep() {
       hideProgress={true}
     >
       <div className="flex flex-col items-center space-y-10">
+        <Image
+          src="/brand/empathy-lettering-black.svg"
+          alt="Empathy — Tech Agency, Human Inside."
+          width={220}
+          height={54}
+          className="h-auto w-[220px]"
+          priority
+        />
+
         {/* Divider */}
         <div className="w-16 h-px bg-gray-300" />
 

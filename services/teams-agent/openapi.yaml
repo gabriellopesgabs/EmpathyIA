@@ -1,0 +1,46 @@
+openapi: 3.1.0
+info:
+  title: Empathy Meeting Agent Service
+  version: 1.0.0
+paths:
+  /health:
+    get:
+      responses:
+        "200": { description: Process is alive }
+  /v1/readiness:
+    get:
+      security: [{ pairingToken: [] }]
+      responses:
+        "200": { description: Exact provider prerequisites and readiness }
+  /v1/sessions:
+    post:
+      security: [{ pairingToken: [] }]
+      responses:
+        "200": { description: Provider-confirmed session and events }
+        "503": { description: Provider runtime or administrative prerequisites are missing }
+  /v1/sessions/{sessionId}:
+    get:
+      security: [{ pairingToken: [] }]
+      parameters:
+        - in: path
+          name: sessionId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Current session and events }
+        "404": { description: Unknown session }
+  /v1/sessions/{sessionId}/leave:
+    post:
+      security: [{ pairingToken: [] }]
+      parameters:
+        - in: path
+          name: sessionId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Provider-confirmed leaving and left events }
+components:
+  securitySchemes:
+    pairingToken:
+      type: http
+      scheme: bearer

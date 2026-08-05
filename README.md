@@ -68,6 +68,30 @@ assinado com nome da Skill, data, modelo e documentos usados; resultados anterio
 substituídos silenciosamente. Skills nativas podem ser duplicadas e as personalizadas ficam em
 `Application Support/Empathy/skills` como JSON portável, sem uma nova tabela SQL.
 
+### Preparação de reuniões
+
+Uma reunião do Outlook pode virar uma Nota antes de começar. A Skill nativa
+**Preparar reunião** combina a Nota, os participantes confirmados e, somente se
+o usuário escolher, até dez mensagens relacionadas. A prévia informa se o
+modelo é local ou externo e quais fontes serão processadas. O resultado só
+entra no Markdown depois da revisão humana.
+
+A memória de participantes fica em `People/*.md`, separando fatos confirmados
+de hipóteses. Ela é portátil, corrigível, mesclável e removível, e também
+enriquece o grafo sem criar uma base de perfilamento paralela.
+
+### Presença de IA nas chamadas
+
+O Teams usa um participante nomeado **Empathy AI — gravação e transcrição** e
+uma trilha `agent-audit.md`. Convite, lobby, consentimento, transcrição, pausa e
+saída são estados explícitos. O runtime de mídia é um serviço Windows/Azure
+separado e a ação permanece bloqueada enquanto ele não comprovar readiness.
+
+Zoom e Google Meet não são apresentados como equivalentes. Zoom RTMS usa o
+indicador nativo da plataforma; Meet REST importa participantes/artefatos sem
+entrar na chamada; Meet Media API é experimental. Configurações mostra as
+capacidades reais e cada requisito ainda pendente.
+
 ## Memória conectada
 
 A área **Conhecimento** transforma os documentos locais em uma memória navegável de projetos,

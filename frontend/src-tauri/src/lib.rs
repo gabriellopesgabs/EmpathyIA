@@ -39,7 +39,9 @@ pub mod config;
 pub mod console_utils;
 pub mod database;
 pub mod groq;
+pub mod integrations;
 pub mod knowledge;
+pub mod meeting_agent;
 pub mod meeting_files;
 pub mod notifications;
 pub mod ollama;
@@ -47,6 +49,7 @@ pub mod onboarding;
 pub mod openai;
 pub mod openrouter;
 pub mod parakeet_engine;
+pub mod participant_memory;
 pub mod skills;
 pub mod state;
 pub mod summary;
@@ -748,6 +751,30 @@ pub fn run() {
             skills::api_migrate_custom_templates,
             skills::api_run_skill,
             skills::api_cancel_skill,
+            participant_memory::api_list_participant_memories,
+            participant_memory::api_confirm_note_participants,
+            participant_memory::api_save_participant_memory,
+            participant_memory::api_delete_participant_memory,
+            participant_memory::api_merge_participant_memories,
+            meeting_agent::api_get_meeting_agent_audit,
+            meeting_agent::api_get_agent_service_readiness,
+            meeting_agent::api_get_meeting_provider_readiness,
+            meeting_agent::api_pair_agent_service,
+            meeting_agent::api_disconnect_agent_service,
+            meeting_agent::api_request_teams_agent,
+            meeting_agent::api_refresh_teams_agent,
+            meeting_agent::api_leave_teams_agent,
+            integrations::api_get_integration_capabilities,
+            integrations::api_get_microsoft_auth_readiness,
+            integrations::api_connect_microsoft_calendar,
+            integrations::api_authorize_microsoft_mail,
+            integrations::api_list_outlook_events,
+            integrations::api_search_outlook_mail_context,
+            integrations::api_get_selected_outlook_mail,
+            integrations::api_create_note_from_outlook_event,
+            integrations::api_get_integration_feature_flags,
+            integrations::api_list_connected_accounts,
+            integrations::api_disconnect_integration_account,
             // Custom OpenAI commands
             api::api_save_custom_openai_config,
             api::api_get_custom_openai_config,

@@ -27,6 +27,7 @@ interface TranscriptPanelProps {
   meetingId?: string;
   meetingFolderPath?: string | null;
   onRefetchTranscripts?: () => Promise<void>;
+  onComposeNote?: () => void;
 }
 
 export function TranscriptPanel({
@@ -45,6 +46,7 @@ export function TranscriptPanel({
   meetingId,
   meetingFolderPath,
   onRefetchTranscripts,
+  onComposeNote,
 }: TranscriptPanelProps) {
   // Convert transcripts to segments if pagination is not used but we want virtualization
   const convertedSegments = useMemo(() => {
@@ -72,7 +74,9 @@ export function TranscriptPanel({
           meetingId={meetingId}
           meetingFolderPath={meetingFolderPath}
           onRefetchTranscripts={onRefetchTranscripts}
+          onComposeNote={onComposeNote}
         />
+        {onComposeNote && <p className="mt-2 text-center text-[11px] text-muted-foreground">Selecione um trecho ou use toda a transcrição para compor a Nota com Skills.</p>}
       </div>
 
       {/* Transcript content - use virtualized view for better performance */}

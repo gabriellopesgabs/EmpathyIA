@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import type { OutlookNoteMeetingContext } from '@/types/integrations';
 
 export interface NoteDocument {
   id: string;
@@ -10,6 +11,7 @@ export interface NoteDocument {
   written: boolean;
   archived: boolean;
   folder_path: string;
+  external_meeting?: OutlookNoteMeetingContext | null;
   content_hash: string;
 }
 

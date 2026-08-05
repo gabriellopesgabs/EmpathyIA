@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Brain, Calendar, FolderOpen, Loader2, Save } from 'lucide-react';
+import { Bot, Brain, Calendar, FolderOpen, Loader2, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { SkillPanel } from '@/components/Skills/SkillPanel';
 import { buildSkillResultBlock, insertSkillResult, type TextSelection } from '@/lib/skillBlocks';
 import { noteService, type NoteDocument } from '@/services/noteService';
 import type { SkillRunResult } from '@/types/skills';
+import { MeetingAgentPanel } from '@/components/MeetingAgentPanel';
 
 export function AugmentedNoteEditor({ id, transcript, compact = false, externalTitle, onContentChanged }: {
   id: string; transcript?: string; compact?: boolean; externalTitle?: string; onContentChanged?: (content: string, title: string) => void;
@@ -19,7 +20,7 @@ export function AugmentedNoteEditor({ id, transcript, compact = false, externalT
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
-  const [skillsOpen, setSkillsOpen] = useState(false);
+  const [sidePanel, setSidePanel] = useState<'skills' | 'agent' | null>(null);
   const [selection, setSelection] = useState<TextSelection | null>(null);
   const [conflict, setConflict] = useState<NoteDocument | null>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
@@ -55,7 +56,7 @@ export function AugmentedNoteEditor({ id, transcript, compact = false, externalT
     const text = content.slice(editor.selectionStart, editor.selectionEnd);
     setSelection(text ? { start: editor.selectionStart, end: editor.selectionEnd, text } : null);
   };
-  const openSkills = () => { captureSelection(); setSkillsOpen(true); };
+  const openSkills = () => { captureSelection(); setSidePanel('skills'); };
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') { event.preventDefault(); void save(); }
@@ -66,7 +67,7 @@ export function AugmentedNoteEditor({ id, transcript, compact = false, externalT
   });
 
   const changeContent = (next: string) => {
-    if (/(^|\n)\/skill\s*$/.test(next)) { setContent(next.replace(/(^|\n)\/skill\s*$/, '$1')); setDirty(true); setSelection(null); setSkillsOpen(true); return; }
+    if (/(^|\n)\/skill\s*$/.test(next)) { setContent(next.replace(/(^|\n)\/skill\s*$/, '$1')); setDirty(true); setSelection(null); setSidePanel('skills'); return; }
     setContent(next); setDirty(true);
   };
   const accept = (result: SkillRunResult, resultTitle: string, markdown: string) => {
@@ -82,6 +83,7 @@ export function AugmentedNoteEditor({ id, transcript, compact = false, externalT
     <div className="augmented-note-main">
       <div className="augmented-note-actions">
         <Button variant="ghost" size="sm" onClick={openSkills}><Brain /> Skills <kbd>/skill</kbd></Button>
+        {note.external_meeting?.meeting_provider === 'microsoft-teams' && <Button variant="ghost" size="sm" onClick={() => setSidePanel('agent')}><Bot /> Agente</Button>}
         {!compact && <Button variant="ghost" size="sm" onClick={() => invoke('open_meeting_folder', { meetingId: note.id, authToken: null })}><FolderOpen /> Mostrar na pasta</Button>}
         <Button size="sm" onClick={() => void save()} disabled={!dirty || saving}>{saving ? <Loader2 className="animate-spin" /> : <Save />}{saving ? 'Salvando…' : dirty ? 'Salvar' : 'Salvo'}</Button>
       </div>
@@ -92,6 +94,7 @@ export function AugmentedNoteEditor({ id, transcript, compact = false, externalT
       </div></div>
       {conflict && <aside className="note-conflict"><div><strong>Esta nota mudou fora do Empathy</strong><p>Compare antes de decidir. Nada foi sobrescrito.</p></div><div className="note-conflict-columns"><section><h4>Sua versão</h4><pre>{content}</pre></section><section><h4>Versão no disco</h4><pre>{conflict.content}</pre></section></div><div><Button variant="ghost" onClick={() => { setNote(conflict); setTitle(conflict.title); setContent(conflict.content); setDirty(false); setConflict(null); }}>Usar versão do disco</Button><Button onClick={() => void save(true)}>Substituir após revisão</Button></div></aside>}
     </div>
-    <SkillPanel open={skillsOpen} note={{ ...note, title }} content={content} selection={selection} transcript={transcript} onClose={() => setSkillsOpen(false)} onAccept={accept} />
+    <SkillPanel open={sidePanel === 'skills'} note={{ ...note, title }} content={content} selection={selection} transcript={transcript} onClose={() => setSidePanel(null)} onAccept={accept} />
+    {sidePanel === 'agent' && note.external_meeting && <MeetingAgentPanel noteId={note.id} meeting={note.external_meeting} onClose={() => setSidePanel(null)} />}
   </div>;
 }

@@ -631,7 +631,13 @@ fn build_knowledge_graph(
     let mut meeting_anchors = BTreeMap::<String, String>::new();
 
     for document in &selected_documents {
-        let id = graph_entity_id("document", &document.path);
+        // A portable person document is the canonical version of the same
+        // graph entity referenced by meeting participant names.
+        let id = if document.kind == "person" {
+            graph_entity_id("person", &document.title)
+        } else {
+            graph_entity_id("document", &document.path)
+        };
         document_nodes.insert(document.path.clone(), id.clone());
         insert_graph_node(
             &mut nodes,
@@ -1966,6 +1972,49 @@ mod tests {
         assert!(graph.nodes.iter().any(|node| node.kind == "person"));
         assert!(graph.nodes.iter().any(|node| node.kind == "task"));
         assert!(graph.edges.iter().any(|edge| edge.kind == "contains"));
+    }
+
+    #[test]
+    fn portable_person_document_enriches_the_existing_participant_node() {
+        let documents = vec![
+            KnowledgeDocument {
+                path: "/workspace/meeting/meeting.md".into(),
+                meeting_id: Some("meeting-1".into()),
+                kind: "meeting".into(),
+                title: "Produto".into(),
+                project: None,
+                participants_json: r#"["Maria"]"#.into(),
+                tags_json: "[]".into(),
+                status: Some("active".into()),
+                modified_ms: 1,
+            },
+            KnowledgeDocument {
+                path: "/workspace/People/person-1.md".into(),
+                meeting_id: None,
+                kind: "person".into(),
+                title: "Maria".into(),
+                project: None,
+                participants_json: "[]".into(),
+                tags_json: r#"["person"]"#.into(),
+                status: Some("active".into()),
+                modified_ms: 2,
+            },
+        ];
+        let graph = build_knowledge_graph(&documents, &[], &[], &[], None);
+        let people = graph
+            .nodes
+            .iter()
+            .filter(|node| node.kind == "person" && node.label == "Maria")
+            .collect::<Vec<_>>();
+        assert_eq!(people.len(), 1);
+        assert_eq!(
+            people[0].path.as_deref(),
+            Some("/workspace/People/person-1.md")
+        );
+        assert!(graph
+            .edges
+            .iter()
+            .any(|edge| { edge.kind == "participant" && edge.target == people[0].id }));
     }
 
     #[test]

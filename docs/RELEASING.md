@@ -57,3 +57,28 @@ existir ou se a chave do atualizador estiver ausente.
 As assinaturas do atualizador protegem o canal do EmpathyIA, mas não substituem a assinatura e a
 notarização exigidas pelos sistemas operacionais. Até essas credenciais existirem e os testes acima
 passarem, os builds são adequados para validação interna, não para distribuição pública.
+
+## Build e abertura local no macOS
+
+O comando único de desenvolvimento fica em `script/build_and_run.sh`; o botão
+**Run** do Codex usa o mesmo caminho por
+`.codex/environments/environment.toml`.
+
+```bash
+./script/build_and_run.sh --verify
+```
+
+Esse fluxo gera um bundle de depuração, desativa artefatos do atualizador local
+(a chave privada não deve estar na máquina de desenvolvimento), abre o `.app` e
+confirma o processo. Para um DMG interno ARM64, sem assinatura Developer ID nem
+notarização:
+
+```bash
+cd frontend
+pnpm exec tauri build --bundles dmg \
+  --config '{"bundle":{"createUpdaterArtifacts":false}}'
+hdiutil verify ../target/release/bundle/dmg/Empathy_0.5.0_aarch64.dmg
+```
+
+Esse DMG não substitui o workflow oficial e não deve ser publicado. A versão no
+nome do arquivo muda a cada release.

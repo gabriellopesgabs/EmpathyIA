@@ -22,6 +22,7 @@ pub struct NoteDocument {
     pub written: bool,
     pub archived: bool,
     pub folder_path: String,
+    pub external_meeting: Option<serde_json::Value>,
     /// Hash of the complete meeting.md used for optimistic concurrency.
     pub content_hash: String,
 }
@@ -175,6 +176,11 @@ pub fn read_note_document(folder: &Path) -> Result<NoteDocument> {
             .to_string()
     };
     let origins = note_origins(&metadata);
+    let external_meeting = metadata
+        .get(origin_value("external_meeting"))
+        .map(serde_json::to_value)
+        .transpose()
+        .context("Failed to read external meeting metadata")?;
     let content_hash = format!("{:x}", Sha256::digest(content.as_bytes()));
     Ok(NoteDocument {
         id: string_value("id"),
@@ -194,6 +200,7 @@ pub fn read_note_document(folder: &Path) -> Result<NoteDocument> {
             .and_then(serde_yaml::Value::as_bool)
             .unwrap_or(false),
         folder_path: folder.to_string_lossy().to_string(),
+        external_meeting,
         content_hash,
     })
 }
@@ -349,6 +356,47 @@ pub fn mark_meeting_written(folder: &Path, updated_at: &str) -> Result<()> {
     );
     let yaml =
         serde_yaml::to_string(&metadata).context("Failed to serialize meeting.md frontmatter")?;
+    atomic_write(&path, &format!("---\n{}---\n\n{}", yaml, body))
+}
+
+/// Attaches user-approved external meeting metadata while preserving the note body and
+/// unrelated frontmatter. The caller is responsible for obtaining the event again from
+/// the provider before invoking this write.
+pub fn attach_external_meeting(
+    folder: &Path,
+    external_meeting: serde_yaml::Value,
+    participants: &[String],
+    updated_at: &str,
+) -> Result<()> {
+    let path = folder.join(MEETING_FILE);
+    let content =
+        fs::read_to_string(&path).with_context(|| format!("Failed to read {}", path.display()))?;
+    let (mut metadata, body) = split_meeting_document(&content)?;
+    let key = |value: &str| serde_yaml::Value::String(value.to_string());
+    metadata.insert(key("external_meeting"), external_meeting);
+    metadata.insert(
+        key("participants"),
+        serde_yaml::Value::Sequence(
+            participants
+                .iter()
+                .map(|participant| serde_yaml::Value::String(participant.clone()))
+                .collect(),
+        ),
+    );
+    metadata.insert(
+        key("updated_at"),
+        serde_yaml::Value::String(updated_at.to_string()),
+    );
+    let mut tags = metadata
+        .get(key("tags"))
+        .and_then(serde_yaml::Value::as_sequence)
+        .cloned()
+        .unwrap_or_default();
+    if !tags.iter().any(|value| value.as_str() == Some("outlook")) {
+        tags.push(serde_yaml::Value::String("outlook".into()));
+    }
+    metadata.insert(key("tags"), serde_yaml::Value::Sequence(tags));
+    let yaml = serde_yaml::to_string(&metadata).context("Failed to serialize note frontmatter")?;
     atomic_write(&path, &format!("---\n{}---\n\n{}", yaml, body))
 }
 
@@ -804,6 +852,47 @@ mod tests {
         assert_eq!(saved.title, "Ideias revisadas");
         assert!(saved.content.contains("Biblioteca Markdown"));
         assert!(meeting_has_written_content(dir.path()));
+    }
+
+    #[test]
+    fn external_meeting_metadata_preserves_body_and_updates_participants() {
+        let dir = tempfile::tempdir().unwrap();
+        write_written_note(
+            dir.path(),
+            "note-1",
+            "Planejamento",
+            "2026-08-05T12:00:00Z",
+            "2026-08-05T12:00:00Z",
+            "# Planejamento\n\nTexto do usuário.",
+        )
+        .unwrap();
+        attach_external_meeting(
+            dir.path(),
+            serde_yaml::to_value(serde_json::json!({
+                "schema": 1,
+                "provider": "microsoft",
+                "calendar_event_id": "event-1"
+            }))
+            .unwrap(),
+            &["Gabriel".into(), "Maria".into()],
+            "2026-08-05T12:05:00Z",
+        )
+        .unwrap();
+
+        let markdown = fs::read_to_string(dir.path().join(MEETING_FILE)).unwrap();
+        assert!(markdown.contains("calendar_event_id: event-1"));
+        assert!(markdown.contains("- Gabriel"));
+        assert!(markdown.contains("- Maria"));
+        assert!(markdown.contains("- outlook"));
+        assert!(markdown.contains("Texto do usuário."));
+        let note = read_note_document(dir.path()).unwrap();
+        assert_eq!(
+            note.external_meeting
+                .as_ref()
+                .and_then(|value| value.get("calendar_event_id"))
+                .and_then(serde_json::Value::as_str),
+            Some("event-1")
+        );
     }
 
     #[tokio::test]

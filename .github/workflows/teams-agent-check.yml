@@ -1,0 +1,32 @@
+name: Teams agent service check
+
+on:
+  pull_request:
+    paths:
+      - "services/teams-agent/**"
+      - ".github/workflows/teams-agent-check.yml"
+  push:
+    branches: [main]
+    paths:
+      - "services/teams-agent/**"
+      - ".github/workflows/teams-agent-check.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 6.0.x
+          cache: true
+          cache-dependency-path: services/teams-agent/Empathy.TeamsAgent.csproj
+      - name: Restore reviewed Microsoft media SDK
+        working-directory: services/teams-agent
+        run: dotnet restore
+      - name: Build fail-closed service boundary
+        working-directory: services/teams-agent
+        run: dotnet build --configuration Release --no-restore

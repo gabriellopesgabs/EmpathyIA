@@ -2,6 +2,7 @@
 
 import { Archive, Home, Import, Mic, Network, PanelLeftClose, PanelLeftOpen, Plus, Settings } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useEffect } from 'react';
 import { useSidebar } from '@/components/Sidebar/SidebarProvider';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
@@ -58,7 +59,9 @@ export function AppSidebar() {
     <aside className="app-sidebar" data-collapsed={isCollapsed} aria-label="Navegação principal">
       <div className="app-drag-region">
         <div className="app-brand" aria-label="Empathy">
-          <span className="app-brand-mark">E</span><span>Empathy</span>
+          <span className="app-brand-mark" aria-hidden="true">E</span>
+          <Image className="app-brand-wordmark app-brand-wordmark-light" src="/brand/empathy-wordmark-black.svg" alt="" width={116} height={20} priority />
+          <Image className="app-brand-wordmark app-brand-wordmark-dark" src="/brand/empathy-wordmark-white.svg" alt="" width={116} height={20} priority />
         </div>
       </div>
 

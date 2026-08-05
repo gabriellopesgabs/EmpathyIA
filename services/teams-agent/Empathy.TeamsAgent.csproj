@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Microsoft requires a release no older than three months. Recheck this pin on every deployment. -->
+    <PackageReference Include="Microsoft.Graph.Communications.Calls.Media" Version="1.2.0.17950" />
+  </ItemGroup>
+</Project>
