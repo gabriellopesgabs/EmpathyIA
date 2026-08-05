@@ -12,6 +12,7 @@ export type KnowledgeGraphNode = {
   meeting_id?: string;
   path?: string;
   count: number;
+  partial?: boolean;
 };
 
 export type KnowledgeGraphEdge = {
@@ -52,11 +53,13 @@ export function buildLiveKnowledgeGraph(
   transcripts: Transcript[],
   meetingTitle = 'Reunião ao vivo',
 ): KnowledgeGraph {
-  const finalTranscripts = transcripts.filter(item => item.text.trim() && !item.is_partial);
+  // Short Whisper chunks are marked as partial while recording. They are still
+  // the best available live evidence and must feed both the transcript and graph.
+  const liveTranscripts = transcripts.filter(item => item.text.trim());
   const frequencies = new Map<string, number>();
   const segmentWords = new Map<string, Set<string>>();
 
-  for (const transcript of finalTranscripts) {
+  for (const transcript of liveTranscripts) {
     const unique = new Set(words(transcript.text));
     segmentWords.set(transcript.id, unique);
     unique.forEach(word => frequencies.set(word, (frequencies.get(word) ?? 0) + 1));
@@ -67,7 +70,7 @@ export function buildLiveKnowledgeGraph(
     .slice(0, 12);
   const topicSet = new Set(topics.map(([topic]) => topic));
   const nodes: KnowledgeGraphNode[] = [{
-    id: 'live-meeting', label: meetingTitle || 'Reunião ao vivo', kind: 'meeting', count: finalTranscripts.length,
+    id: 'live-meeting', label: meetingTitle || 'Reunião ao vivo', kind: 'meeting', count: liveTranscripts.length,
   }];
   const edges: KnowledgeGraphEdge[] = [];
 
@@ -77,10 +80,10 @@ export function buildLiveKnowledgeGraph(
     edges.push({ id: edgeId('live-meeting', id, 'topic'), source: 'live-meeting', target: id, kind: 'topic', weight: count });
   }
 
-  for (const transcript of finalTranscripts.slice(-6)) {
+  for (const transcript of liveTranscripts.slice(-6)) {
     const id = `segment:${transcript.id}`;
     const label = transcript.text.length > 72 ? `${transcript.text.slice(0, 69)}…` : transcript.text;
-    nodes.push({ id, label, kind: 'segment', count: 1 });
+    nodes.push({ id, label, kind: 'segment', count: 1, partial: transcript.is_partial });
     edges.push({ id: edgeId('live-meeting', id, 'segment'), source: 'live-meeting', target: id, kind: 'segment', weight: 1 });
     for (const topic of segmentWords.get(transcript.id) ?? []) {
       if (!topicSet.has(topic)) continue;
@@ -91,4 +94,58 @@ export function buildLiveKnowledgeGraph(
   }
 
   return { nodes, edges, truncated: false };
+}
+
+export function buildMarkdownKnowledgeGraph(
+  markdown: string,
+  title = 'Nota',
+): KnowledgeGraph {
+  const segments: Transcript[] = markdown
+    .split(/\n\s*\n/g)
+    .map((block, index) => ({
+      id: `markdown-${index}`,
+      text: block
+        .replace(/^#{1,6}\s+/gm, '')
+        .replace(/^[-*+]\s+(?:\[[ xX]\]\s*)?/gm, '')
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+        .replace(/[*_`>]/g, '')
+        .trim(),
+      timestamp: '',
+      sequence_id: index,
+    }))
+    .filter(segment => segment.text.length > 0);
+  return buildLiveKnowledgeGraph(segments, title);
+}
+
+export function mergeMeetingKnowledgeGraphs(
+  indexed: KnowledgeGraph,
+  semantic: KnowledgeGraph,
+): KnowledgeGraph {
+  const indexedAnchor = indexed.nodes.find(node => node.kind === 'meeting');
+  const semanticRootId = semantic.nodes.find(node => node.kind === 'meeting')?.id;
+  const remap = (id: string) => indexedAnchor && id === semanticRootId ? indexedAnchor.id : id;
+  const nodes = new Map<string, KnowledgeGraphNode>();
+  const edges = new Map<string, KnowledgeGraphEdge>();
+
+  for (const node of [...indexed.nodes, ...semantic.nodes]) {
+    if (indexedAnchor && node.id === semanticRootId) continue;
+    const existing = nodes.get(node.id);
+    nodes.set(node.id, existing ? { ...existing, count: Math.max(existing.count, node.count) } : node);
+  }
+  for (const edge of [...indexed.edges, ...semantic.edges]) {
+    const source = remap(edge.source);
+    const target = remap(edge.target);
+    if (source === target) continue;
+    const id = `${edge.kind}:${source}:${target}`;
+    const existing = edges.get(id);
+    edges.set(id, existing
+      ? { ...existing, weight: Math.max(existing.weight, edge.weight) }
+      : { ...edge, id, source, target });
+  }
+
+  return {
+    nodes: [...nodes.values()],
+    edges: [...edges.values()],
+    truncated: indexed.truncated || semantic.truncated,
+  };
 }

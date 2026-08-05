@@ -1,7 +1,8 @@
 'use client'
 
 import './globals.css'
-import Sidebar from '@/components/Sidebar'
+import { AppSidebar } from '@/components/AppShell/AppSidebar'
+import { NotesColumn } from '@/components/AppShell/NotesColumn'
 import { SidebarProvider } from '@/components/Sidebar/SidebarProvider'
 import MainContent from '@/components/MainContent'
 import AnalyticsProvider from '@/components/AnalyticsProvider'
@@ -14,10 +15,9 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { RecordingStateProvider } from '@/contexts/RecordingStateContext'
 import { OllamaDownloadProvider } from '@/contexts/OllamaDownloadContext'
 import { TranscriptProvider } from '@/contexts/TranscriptContext'
-import { ConfigProvider, useConfig } from '@/contexts/ConfigContext'
+import { ConfigProvider } from '@/contexts/ConfigContext'
 import { OnboardingProvider } from '@/contexts/OnboardingContext'
 import { OnboardingFlow } from '@/components/onboarding'
-import { loadBetaFeatures } from '@/types/betaFeatures'
 import { DownloadProgressToastProvider } from '@/components/shared/DownloadProgressToast'
 import { UpdateCheckProvider } from '@/components/UpdateCheckProvider'
 import { RecordingPostProcessingProvider } from '@/contexts/RecordingPostProcessingProvider'
@@ -57,7 +57,6 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   const [showOnboarding, setShowOnboarding] = useState(false)
-  const [onboardingCompleted, setOnboardingCompleted] = useState(false)
 
   // Import audio state
   const [showDropOverlay, setShowDropOverlay] = useState(false)
@@ -65,12 +64,18 @@ export default function RootLayout({
   const [importFilePath, setImportFilePath] = useState<string | null>(null)
 
   useEffect(() => {
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const applyTheme = () => document.documentElement.classList.toggle('dark', media.matches)
+    applyTheme()
+    media.addEventListener('change', applyTheme)
+    return () => media.removeEventListener('change', applyTheme)
+  }, [])
+
+  useEffect(() => {
     // Check onboarding status first
     invoke<{ completed: boolean } | null>('get_onboarding_status')
       .then((status) => {
         const isComplete = status?.completed ?? false
-        setOnboardingCompleted(isComplete)
-
         if (!isComplete) {
           console.log('[Layout] Onboarding not completed, showing onboarding flow')
           setShowOnboarding(true)
@@ -82,26 +87,17 @@ export default function RootLayout({
         console.error('[Layout] Failed to check onboarding status:', error)
         // Default to showing onboarding if we can't check
         setShowOnboarding(true)
-        setOnboardingCompleted(false)
       })
   }, [])
 
-  // Disable context menu in production
-  useEffect(() => {
-    if (process.env.NODE_ENV === 'production') {
-      const handleContextMenu = (e: MouseEvent) => e.preventDefault();
-      document.addEventListener('contextmenu', handleContextMenu);
-      return () => document.removeEventListener('contextmenu', handleContextMenu);
-    }
-  }, []);
   useEffect(() => {
     let unlistenFn: (() => void) | null = null;
     listen('request-recording-toggle', () => {
       console.log('[Layout] Received request-recording-toggle from tray');
 
       if (showOnboarding) {
-        toast.error("Please complete setup first", {
-          description: "You need to finish onboarding before you can start recording."
+        toast.error("Conclua a configuração primeiro", {
+          description: "Finalize as etapas iniciais antes de começar uma gravação."
         });
       } else {
         console.log('[Layout] Forwarding to start-recording-from-sidebar');
@@ -111,7 +107,7 @@ export default function RootLayout({
 
     return () => {
       if (unlistenFn) {
-        try { unlistenFn(); } catch (_) {}
+        try { unlistenFn(); } catch {}
       }
     };
   }, [showOnboarding]);
@@ -130,8 +126,8 @@ export default function RootLayout({
       setImportFilePath(audioFile);
       setShowImportDialog(true);
     } else if (paths.length > 0) {
-      toast.error('Please drop an audio file', {
-        description: `Supported formats: ${getAudioFormatsDisplayList()}`
+      toast.error('Solte um arquivo de áudio', {
+        description: `Formatos compatíveis: ${getAudioFormatsDisplayList()}`
       });
     }
   }, []);
@@ -203,13 +199,12 @@ export default function RootLayout({
   const handleOnboardingComplete = () => {
     console.log('[Layout] Onboarding completed, reloading app')
     setShowOnboarding(false)
-    setOnboardingCompleted(true)
     // Optionally reload the window to ensure all state is fresh
     window.location.reload()
   }
 
   return (
-    <html lang="en">
+    <html lang="pt-BR" suppressHydrationWarning>
       <body className="font-sans antialiased">
         <AnalyticsProvider>
           <RecordingStateProvider>
@@ -229,10 +224,11 @@ export default function RootLayout({
                               {showOnboarding ? (
                                 <OnboardingFlow onComplete={handleOnboardingComplete} />
                               ) : (
-                                <div className="flex">
+                                <div className="app-shell">
                                   <GlobalCommandPalette />
                                   <KnowledgeBootstrap />
-                                  <Sidebar />
+                                  <AppSidebar />
+                                  <NotesColumn />
                                   <MainContent>{children}</MainContent>
                                 </div>
                               )}

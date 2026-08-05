@@ -54,6 +54,10 @@ export function TranscriptPanel({
     [transcripts]
   );
   const liveGraph = useMemo(() => buildLiveKnowledgeGraph(transcripts, meetingTitle), [meetingTitle, transcripts]);
+  const partialCount = transcripts.filter(transcript => transcript.is_partial).length;
+  const graphStatusLabel = isRecording
+    ? (isPaused ? 'Pausado' : transcripts.length > 0 ? 'Ao vivo' : 'Ouvindo')
+    : isProcessingStop ? 'Processando' : undefined;
 
   useEffect(() => {
     const saved = localStorage.getItem('empathy_live_transcript_view');
@@ -67,7 +71,7 @@ export function TranscriptPanel({
 
   const transcriptContent = (
     <div className="flex min-h-full justify-center pb-20">
-      <div className={viewMode === 'split' ? 'w-full max-w-[750px] px-4' : 'w-2/3 max-w-[750px]'}>
+      <div className={viewMode === 'split' ? 'w-full max-w-[750px] px-2 sm:px-4' : 'w-full max-w-4xl px-3 sm:px-6'}>
         <VirtualizedTranscriptView
           segments={segments}
           isRecording={isRecording}
@@ -82,9 +86,9 @@ export function TranscriptPanel({
   );
 
   return (
-    <div className="w-full border-r border-gray-200 bg-white flex flex-col overflow-hidden">
+    <div className="live-transcript-panel w-full flex flex-col overflow-hidden">
       {/* Title area - Sticky header */}
-      <div className="sticky top-0 z-10 bg-white p-4 border-gray-200">
+      <div className="live-view-toolbar sticky top-0 z-10 p-3">
         <div className="flex flex-col space-y-3">
           <div className="flex  flex-col space-y-2">
             <div className="flex justify-center  items-center space-x-2">
@@ -94,11 +98,11 @@ export function TranscriptPanel({
                     variant="outline"
                     size="sm"
                     onClick={copyTranscript}
-                    title="Copy Transcript"
+                    title="Copiar transcrição"
                   >
                     <Copy />
                     <span className='hidden md:inline'>
-                      Copy
+                      Copiar
                     </span>
                   </Button>
                 )}
@@ -107,11 +111,11 @@ export function TranscriptPanel({
                     variant="outline"
                     size="sm"
                     onClick={() => showModal('languageSettings')}
-                    title="Language"
+                    title="Idioma"
                   >
                     <GlobeIcon />
                     <span className='hidden md:inline'>
-                      Language
+                      Idioma
                     </span>
                   </Button>
                 }
@@ -121,7 +125,7 @@ export function TranscriptPanel({
                   <FileText /><span className="hidden lg:inline">Transcrição</span>
                 </Button>
                 <Button variant={viewMode === 'split' ? 'secondary' : 'outline'} size="sm" onClick={() => changeView('split')} title="Transcrição e grafo">
-                  <Columns2 /><span className="hidden lg:inline">Dividido</span>
+                  <Columns2 /><span className="hidden lg:inline">Lado a lado</span>
                 </Button>
                 <Button variant={viewMode === 'graph' ? 'secondary' : 'outline'} size="sm" onClick={() => changeView('graph')} title="Grafo ao vivo">
                   <Network /><span className="hidden lg:inline">Grafo</span>
@@ -151,12 +155,15 @@ export function TranscriptPanel({
           </div>
         )}
         {viewMode !== 'transcript' && (
-          <div className="h-full overflow-y-auto border-l bg-slate-50 p-3 dark:bg-gray-950">
+          <div className="live-graph-pane h-full overflow-y-auto p-3">
             <KnowledgeGraphView
               graph={liveGraph}
               title="Temas da conversa"
-              subtitle={transcripts.length === 0 ? 'Os temas aparecerão conforme a fala for transcrita.' : 'Temas e trechos recentes derivados localmente da transcrição.'}
-              live={isRecording}
+              subtitle={transcripts.length === 0
+                ? 'Os temas aparecerão conforme a fala for transcrita.'
+                : `${transcripts.length} trecho${transcripts.length === 1 ? '' : 's'} recebido${transcripts.length === 1 ? '' : 's'}${partialCount > 0 ? ` · ${partialCount} em processamento` : ''}.`}
+              live={isRecording && !isPaused}
+              statusLabel={graphStatusLabel}
             />
           </div>
         )}

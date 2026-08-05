@@ -102,6 +102,11 @@ pub async fn api_save_meeting_summary<R: Runtime>(
             &summary,
         )
         .map_err(|e| format!("Failed to save canonical summary Markdown: {}", e))?;
+        crate::meeting_files::mark_meeting_written(
+            std::path::Path::new(folder_path),
+            &chrono::Utc::now().to_rfc3339(),
+        )
+        .map_err(|e| format!("Failed to mark the meeting note as written: {}", e))?;
     }
 
     match SummaryProcessesRepository::update_meeting_summary(pool, &meeting_id, &summary).await {

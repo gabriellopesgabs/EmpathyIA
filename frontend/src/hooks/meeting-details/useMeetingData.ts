@@ -104,6 +104,9 @@ export function useMeetingData({ meeting, summaryData, onMeetingUpdated }: UseMe
         meetingId: meeting.id,
         summary: formattedSummary,
       });
+      window.dispatchEvent(new CustomEvent('meeting-note-written', {
+        detail: { meetingId: meeting.id },
+      }));
 
       console.log('✅ Save meeting summary success');
     } catch (error) {

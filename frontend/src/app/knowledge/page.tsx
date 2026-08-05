@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { invoke } from '@tauri-apps/api/core';
 import {
   BookOpen, Boxes, CheckSquare, FileInput, GitBranch, Globe2,
-  Loader2, Network, RefreshCw, Search, Sparkles, Users,
+  Loader2, MoreHorizontal, Network, RefreshCw, Search, Sparkles, Users,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { KnowledgeGraphView } from '@/components/KnowledgeGraph';
 import type { KnowledgeGraph, KnowledgeGraphNode } from '@/lib/knowledgeGraph';
 
@@ -90,7 +91,7 @@ export default function KnowledgePage() {
   const [savedSearches, setSavedSearches] = useState<string[]>([]);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('graph');
   const [extensions, setExtensions] = useState<KnowledgeExtension[]>([]);
   const [preview, setPreview] = useState<KnowledgeDocumentContent | null>(null);
   const [graph, setGraph] = useState<KnowledgeGraph>({ nodes: [], edges: [], truncated: false });
@@ -278,29 +279,37 @@ export default function KnowledgePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 px-6 py-8 text-gray-900 dark:bg-gray-950 dark:text-gray-100">
-      <div className="mx-auto max-w-7xl">
-        <header className="mb-7 flex flex-wrap items-start justify-between gap-4">
+    <div className="knowledge-shell">
+      <div className="mx-auto w-full max-w-7xl">
+        <header className="knowledge-header">
           <div>
-            <div className="flex items-center gap-2 text-sm font-medium text-blue-600"><Network className="h-4 w-4" /> Memória conectada</div>
-            <h1 className="mt-1 text-3xl font-semibold">Conhecimento</h1>
+            <div className="eyebrow flex items-center gap-2"><Network className="h-4 w-4" /> Memória conectada</div>
+            <h1>Conhecimento</h1>
             <p className="mt-2 max-w-2xl text-gray-500">Reuniões, decisões, tarefas, pessoas e projetos derivados dos seus arquivos Markdown.</p>
             {lastIndex && <p className="mt-1 text-xs text-gray-400">Workspace: {lastIndex.root}</p>}
           </div>
-          <Button variant="outline" onClick={() => reindex()} disabled={loading}>
+          <Button variant="ghost" onClick={() => reindex()} disabled={loading}>
             {loading ? <Loader2 className="animate-spin" /> : <RefreshCw />} Reindexar
           </Button>
         </header>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-5 flex h-auto flex-wrap justify-start">
-            <TabsTrigger value="overview">Visão geral</TabsTrigger>
+          <div className="knowledge-toolbar">
+          <TabsList className="segmented-control h-auto bg-transparent p-0">
             <TabsTrigger value="graph">Grafo global</TabsTrigger>
+            <TabsTrigger value="overview">Visão geral</TabsTrigger>
             <TabsTrigger value="search">Busca global</TabsTrigger>
-            <TabsTrigger value="capture">Capturar contexto</TabsTrigger>
-            <TabsTrigger value="tools">Importar e exportar</TabsTrigger>
-            <TabsTrigger value="extensions">Extensões</TabsTrigger>
           </TabsList>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label="Mais opções de conhecimento"><MoreHorizontal /></Button></DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => setActiveTab('capture')}><Globe2 />Capturar contexto</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setActiveTab('tools')}><FileInput />Importar e exportar</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => setActiveTab('extensions')}><Boxes />Extensões e automações</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          </div>
 
           <TabsContent value="overview" className="space-y-5">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

@@ -19,15 +19,6 @@ const KIND_LABELS: Record<string, string> = {
   topic: 'Tema', segment: 'Trecho recente',
 };
 
-function hash(value: string): number {
-  let result = 2166136261;
-  for (let index = 0; index < value.length; index += 1) {
-    result ^= value.charCodeAt(index);
-    result = Math.imul(result, 16777619);
-  }
-  return result >>> 0;
-}
-
 function prepareGraph(graph: KnowledgeGraph, width: number, height: number): { nodes: Point[]; edges: KnowledgeGraph['edges'] } {
   const degree = new Map<string, number>();
   graph.edges.forEach(edge => {
@@ -44,9 +35,8 @@ function prepareGraph(graph: KnowledgeGraph, width: number, height: number): { n
   const primary = selected.filter(node => ['meeting', 'transcript', 'summary', 'note'].includes(node.kind));
   const semantic = selected.filter(node => !['meeting', 'transcript', 'summary', 'note'].includes(node.kind));
 
-  const place = (node: KnowledgeGraphNode, index: number, total: number, radius: number): Point => {
-    const stableOffset = (hash(node.id) % 1000) / 1000 * Math.PI * 2;
-    const angle = stableOffset + (index / Math.max(total, 1)) * Math.PI * 2;
+  const place = (node: KnowledgeGraphNode, radius: number, index: number, total: number, offset = 0): Point => {
+    const angle = offset + (index / Math.max(1, total)) * Math.PI * 2;
     const nodeDegree = degree.get(node.id) ?? 1;
     return {
       ...node,
@@ -58,21 +48,22 @@ function prepareGraph(graph: KnowledgeGraph, width: number, height: number): { n
   };
 
   const nodes = [
-    ...primary.map((node, index) => primary.length === 1
-      ? { ...place(node, 0, 1, 0), x: centerX, y: centerY }
-      : place(node, index, primary.length, ring * 0.48)),
-    ...semantic.map((node, index) => place(node, index, semantic.length, ring)),
+    ...primary.map((node, index) => index === 0
+      ? { ...place(node, 0, 0, 1), x: centerX, y: centerY }
+      : place(node, ring * (index > 8 ? 0.7 : 0.42), index - 1, Math.min(8, Math.max(1, primary.length - 1)), index > 8 ? Math.PI / 8 : 0)),
+    ...semantic.map((node, index) => place(node, node.kind === 'segment' ? ring * 0.76 : ring, index, semantic.length, Math.PI / 10)),
   ];
   return { nodes, edges: graph.edges.filter(edge => visible.has(edge.source) && visible.has(edge.target)) };
 }
 
 export function KnowledgeGraphView({
-  graph, title, subtitle, live = false, onOpenNode, className = '',
+  graph, title, subtitle, live = false, statusLabel, onOpenNode, className = '',
 }: {
   graph: KnowledgeGraph;
   title: string;
   subtitle?: string;
   live?: boolean;
+  statusLabel?: string;
   onOpenNode?: (node: KnowledgeGraphNode) => void;
   className?: string;
 }) {
@@ -84,6 +75,7 @@ export function KnowledgeGraphView({
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hiddenKinds, setHiddenKinds] = useState<Set<string>>(() => new Set());
+  const [darkMode, setDarkMode] = useState(false);
   const kinds = useMemo(() => [...new Set(graph.nodes.map(node => node.kind))].sort(), [graph.nodes]);
   const visibleGraph = useMemo(() => ({
     ...graph,
@@ -91,6 +83,14 @@ export function KnowledgeGraphView({
   }), [graph, hiddenKinds]);
   const prepared = useMemo(() => prepareGraph(visibleGraph, size.width, size.height), [size, visibleGraph]);
   const selected = prepared.nodes.find(node => node.id === selectedId) ?? null;
+
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const update = () => setDarkMode(media.matches);
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
 
   useEffect(() => {
     const element = containerRef.current;
@@ -121,7 +121,7 @@ export function KnowledgeGraphView({
     if (!context) return;
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
     context.clearRect(0, 0, size.width, size.height);
-    context.fillStyle = '#f8fafc';
+    context.fillStyle = darkMode ? '#111827' : '#f8fafc';
     context.fillRect(0, 0, size.width, size.height);
 
     const byId = new Map(prepared.nodes.map(node => [node.id, node]));
@@ -135,7 +135,7 @@ export function KnowledgeGraphView({
       context.beginPath();
       context.moveTo(start.x, start.y);
       context.lineTo(end.x, end.y);
-      context.strokeStyle = edge.kind === 'link' ? '#6366f1' : '#cbd5e1';
+      context.strokeStyle = edge.kind === 'link' ? '#818cf8' : darkMode ? '#475569' : '#cbd5e1';
       context.globalAlpha = selectedId && source.id !== selectedId && target.id !== selectedId ? 0.16 : 0.55;
       context.lineWidth = Math.min(3, 0.7 + Math.sqrt(edge.weight) * 0.45);
       context.stroke();
@@ -144,7 +144,7 @@ export function KnowledgeGraphView({
 
     const labelNodes = [...prepared.nodes]
       .sort((left, right) => right.degree - left.degree)
-      .slice(0, size.width < 520 ? 7 : 14);
+      .slice(0, size.width < 520 ? 5 : 9);
     const labels = new Set(labelNodes.map(node => node.id));
     prepared.nodes.forEach(node => {
       const point = screenPoint(node);
@@ -155,21 +155,21 @@ export function KnowledgeGraphView({
       context.globalAlpha = selectedId && !focused ? 0.58 : 0.94;
       context.fill();
       if (focused) {
-        context.strokeStyle = '#0f172a';
+        context.strokeStyle = darkMode ? '#f8fafc' : '#0f172a';
         context.lineWidth = 3;
         context.stroke();
       }
       if (labels.has(node.id) || focused) {
         context.globalAlpha = 1;
         context.font = `${focused ? 600 : 500} 12px ui-sans-serif, system-ui`;
-        context.fillStyle = '#0f172a';
+        context.fillStyle = darkMode ? '#e5e7eb' : '#0f172a';
         context.textAlign = 'center';
         const label = node.label.length > 30 ? `${node.label.slice(0, 27)}…` : node.label;
         context.fillText(label, point.x, point.y + Math.max(14, node.radius * zoom + 13));
       }
     });
     context.globalAlpha = 1;
-  }, [prepared, screenPoint, selectedId, size, zoom]);
+  }, [darkMode, prepared, screenPoint, selectedId, size, zoom]);
 
   const selectAt = (x: number, y: number) => {
     let nearest: Point | undefined;
@@ -196,7 +196,14 @@ export function KnowledgeGraphView({
     <section className={`overflow-hidden rounded-xl border bg-white shadow-sm dark:bg-gray-900 ${className}`}>
       <div className="flex flex-wrap items-start justify-between gap-3 border-b p-4">
         <div>
-          <h2 className="flex items-center gap-2 font-semibold">{title}{live && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">Ao vivo</span>}</h2>
+          <h2 className="flex items-center gap-2 font-semibold">
+            {title}
+            {(live || statusLabel) && (
+              <span className={`rounded-full px-2 py-0.5 text-xs ${live ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                {statusLabel ?? 'Ao vivo'}
+              </span>
+            )}
+          </h2>
           {subtitle && <p className="mt-1 text-sm text-gray-500">{subtitle}</p>}
         </div>
         <div className="flex gap-1" aria-label="Controles do grafo">

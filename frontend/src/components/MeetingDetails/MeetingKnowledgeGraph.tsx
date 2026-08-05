@@ -1,57 +1,62 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { ChevronDown, Loader2, Network } from 'lucide-react';
+import { Loader2, RefreshCw } from 'lucide-react';
 import { KnowledgeGraphView } from '@/components/KnowledgeGraph';
-import type { KnowledgeGraph } from '@/lib/knowledgeGraph';
+import { mergeMeetingKnowledgeGraphs, type KnowledgeGraph } from '@/lib/knowledgeGraph';
+import { Button } from '@/components/ui/button';
 
-export function MeetingKnowledgeGraph({ meetingId }: { meetingId: string }) {
-  const [open, setOpen] = useState(false);
+export function MeetingKnowledgeGraph({
+  meetingId,
+  fallbackGraph,
+}: {
+  meetingId: string;
+  fallbackGraph: KnowledgeGraph;
+}) {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [graph, setGraph] = useState<KnowledgeGraph>({ nodes: [], edges: [], truncated: false });
+  const visibleGraph = useMemo(
+    () => mergeMeetingKnowledgeGraphs(graph, fallbackGraph),
+    [fallbackGraph, graph],
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       setGraph(await invoke<KnowledgeGraph>('api_get_knowledge_graph', { meetingId }));
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : String(loadError));
     } finally {
       setLoading(false);
     }
   }, [meetingId]);
 
   useEffect(() => {
-    if (!open) return;
-    load();
-    const refresh = () => load();
+    void load();
+    const refresh = () => void load();
     window.addEventListener('knowledge-index-updated', refresh);
     return () => window.removeEventListener('knowledge-index-updated', refresh);
-  }, [load, open]);
+  }, [load]);
 
   return (
-    <section className="mx-6 mb-5 rounded-xl border bg-white dark:bg-gray-900">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen(value => !value)}
-        className="flex w-full items-center justify-between gap-3 p-4 text-left"
-      >
-        <span className="flex items-center gap-2 font-semibold"><Network className="h-4 w-4 text-blue-600" /> Grafo desta reunião</span>
-        <ChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {open && (
-        <div className="border-t p-3">
-          {loading ? (
-            <div className="flex min-h-48 items-center justify-center"><Loader2 className="animate-spin text-gray-400" /></div>
-          ) : (
-            <KnowledgeGraphView
-              graph={graph}
-              title="Contexto da reunião"
-              subtitle="Documentos, pessoas, projeto, tags, tarefas e decisões vinculados a esta conversa."
-            />
-          )}
-        </div>
-      )}
+    <section className="relative min-h-full rounded-xl bg-slate-50 p-3 dark:bg-gray-950 sm:p-5">
+      <div className="absolute right-6 top-6 z-10">
+        <Button size="sm" variant="outline" onClick={() => void load()} disabled={loading}>
+          {loading ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+          <span className="hidden sm:inline">Atualizar</span>
+        </Button>
+      </div>
+      <KnowledgeGraphView
+        graph={visibleGraph}
+        title="Grafo da nota"
+        subtitle={error
+          ? 'Exibindo os temas derivados da transcrição salva; o índice completo será combinado quando estiver disponível.'
+          : 'Transcrição, resumo, pessoas, projetos, tags, tarefas, decisões e temas desta nota.'}
+      />
+      {error && <p className="mt-2 px-1 text-xs text-amber-700">O índice completo não pôde ser carregado: {error}</p>}
     </section>
   );
 }

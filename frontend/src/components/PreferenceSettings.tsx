@@ -169,12 +169,12 @@ export function PreferenceSettings() {
 
   // Show loading only if we're actually loading and don't have cached data
   if (isLoadingPreferences && !notificationSettings && !storageLocations) {
-    return <div className="max-w-2xl mx-auto p-6">Loading Preferences...</div>
+    return <div className="max-w-2xl mx-auto p-6">Carregando preferências…</div>
   }
 
   // Show loading if notificationsEnabled hasn't been determined yet
   if (notificationsEnabled === null && !isLoadingPreferences) {
-    return <div className="max-w-2xl mx-auto p-6">Loading Preferences...</div>
+    return <div className="max-w-2xl mx-auto p-6">Carregando preferências…</div>
   }
 
   // Ensure we have a boolean value for the Switch component
@@ -186,8 +186,8 @@ export function PreferenceSettings() {
       <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Notifications</h3>
-            <p className="text-sm text-gray-600">Enable or disable notifications of start and end of meeting</p>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Notificações</h3>
+            <p className="text-sm text-gray-600">Avisar quando uma gravação começar ou terminar.</p>
           </div>
           <Switch checked={notificationsEnabledValue} onCheckedChange={setNotificationsEnabled} />
         </div>
@@ -195,9 +195,9 @@ export function PreferenceSettings() {
 
       {/* Data Storage Locations Section */}
       <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Data Storage Locations</h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Arquivos e armazenamento</h3>
         <p className="text-sm text-gray-600 mb-6">
-          View and access where Empathy.AI stores your data
+          Seus dados permanecem em arquivos Markdown que você pode abrir e copiar.
         </p>
 
         <div className="space-y-4">
@@ -233,41 +233,41 @@ export function PreferenceSettings() {
 
           {/* Recordings Location */}
           <div className="p-4 border rounded-lg bg-gray-50">
-            <div className="font-medium mb-2">Meeting Recordings</div>
+            <div className="font-medium mb-2">Pasta do Empathy</div>
             <div className="text-sm text-gray-600 mb-3 break-all font-mono text-xs">
-              {storageLocations?.recordings || 'Loading...'}
+              {storageLocations?.recordings || 'Carregando…'}
             </div>
             <button
               onClick={() => handleOpenFolder('recordings')}
               className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
             >
               <FolderOpen className="w-4 h-4" />
-              Open Folder
+              Abrir pasta
             </button>
           </div>
 
           {/* Optional external Markdown workspace */}
           <div className="p-4 border rounded-lg bg-gray-50">
-            <div className="font-medium mb-2">External Markdown Workspace (Optional)</div>
+            <div className="font-medium mb-2">Pasta Markdown externa (opcional)</div>
             <div className="text-sm text-gray-600 mb-3 break-all font-mono text-xs">
-              {obsidianVaultPath || 'No external workspace configured'}
+              {obsidianVaultPath || 'Nenhuma pasta externa configurada'}
             </div>
             <button
               onClick={handleSelectVaultFolder}
               className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
             >
               <FolderOpen className="w-4 h-4" />
-              Configure Markdown Folder
+              Escolher pasta Markdown
             </button>
             <p className="mt-2 text-xs text-gray-500">
-              Creates portable notes under EmpathyIA/Meetings. Compatible with Obsidian and other Markdown editors.
+              Cria notas portáteis compatíveis com Obsidian e outros editores Markdown.
             </p>
           </div>
         </div>
 
         <div className="mt-4 p-3 bg-blue-50 rounded-md">
           <p className="text-xs text-blue-800">
-            <strong>Note:</strong> Database and models are stored together in your application data directory for unified management.
+            <strong>Privacidade:</strong> o conteúdo das notas fica nos arquivos Markdown escolhidos por você. O índice local pode ser reconstruído.
           </p>
         </div>
       </div>

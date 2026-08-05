@@ -1,16 +1,15 @@
 "use client";
 
 import { Summary, SummaryResponse, Transcript } from '@/types';
-import { EditableTitle } from '@/components/EditableTitle';
 import { BlockNoteSummaryView, BlockNoteSummaryViewRef } from '@/components/AISummary/BlockNoteSummaryView';
 import { EmptyStateSummary } from '@/components/EmptyStateSummary';
 import { ModelConfig } from '@/components/ModelSettingsModal';
 import { SummaryGeneratorButtonGroup } from './SummaryGeneratorButtonGroup';
 import { SummaryUpdaterButtonGroup } from './SummaryUpdaterButtonGroup';
 import Analytics from '@/lib/analytics';
-import { useEffect, useRef, useState, RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, RefObject } from 'react';
 import { toast } from 'sonner';
-import { Languages, ChevronDown } from 'lucide-react';
+import { Languages, ChevronDown, FileText, Network } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { LanguagePickerPopover } from '@/components/LanguagePickerPopover';
@@ -19,6 +18,7 @@ import { labelForCode } from '@/lib/summary-languages';
 import { RelatedMeetings } from './RelatedMeetings';
 import { MeetingPropertiesEditor } from './MeetingPropertiesEditor';
 import { MeetingKnowledgeGraph } from './MeetingKnowledgeGraph';
+import { buildLiveKnowledgeGraph } from '@/lib/knowledgeGraph';
 import {
   readMeetingSummaryLanguage,
   saveMeetingSummaryLanguage,
@@ -26,6 +26,10 @@ import {
 } from '@/lib/summary-language-preferences';
 
 interface SummaryPanelProps {
+  view?: 'summary' | 'graph';
+  showViewSelector?: boolean;
+  showProperties?: boolean;
+  showRelated?: boolean;
   meeting: {
     id: string;
     title: string;
@@ -66,6 +70,10 @@ interface SummaryPanelProps {
 }
 
 export function SummaryPanel({
+  view,
+  showViewSelector = true,
+  showProperties = true,
+  showRelated = true,
   meeting,
   meetingTitle,
   onTitleChange,
@@ -100,6 +108,8 @@ export function SummaryPanel({
   isModelConfigLoading = false,
   onOpenModelSettings
 }: SummaryPanelProps) {
+  const [internalView, setInternalView] = useState<'summary' | 'graph'>('summary');
+  const activeView = view ?? internalView;
   const [summaryLang, setSummaryLang] = useState<string | null>(null);
   const [summaryLangStorage, setSummaryLangStorage] = useState<SummaryLanguageStorage>('metadata');
   const [langPickerOpen, setLangPickerOpen] = useState(false);
@@ -190,7 +200,7 @@ export function SummaryPanel({
             activeMeetingIdRef.current === request.meetingId
           ) {
             console.error('Failed to persist summary language:', err);
-            toast.error('Failed to save summary language');
+            toast.error('Não foi possível salvar o idioma do resumo');
             setSummaryLang(request.rollback.language);
             setSummaryLangStorage(request.rollback.storage);
             return;
@@ -226,6 +236,10 @@ export function SummaryPanel({
   };
 
   const isSummaryLoading = summaryStatus === 'processing' || summaryStatus === 'summarizing' || summaryStatus === 'regenerating';
+  const savedTranscriptGraph = useMemo(
+    () => buildLiveKnowledgeGraph(transcripts, meetingTitle),
+    [meetingTitle, transcripts],
+  );
 
   const languageSlot = (
     <Popover open={langPickerOpen} onOpenChange={setLangPickerOpen}>
@@ -256,9 +270,31 @@ export function SummaryPanel({
   );
 
   return (
-    <div className="flex-1 min-w-0 flex flex-col bg-white overflow-hidden">
+    <div className="flex-1 min-w-0 flex flex-col bg-card overflow-hidden">
       {/* Title area */}
       <div className="p-4 border-b border-gray-200">
+        {showViewSelector && <div className="mb-3 flex items-center justify-center gap-1" role="tablist" aria-label="Visualizações da nota salva">
+          <Button
+            type="button"
+            size="sm"
+            variant={activeView === 'summary' ? 'secondary' : 'ghost'}
+            role="tab"
+            aria-selected={activeView === 'summary'}
+            onClick={() => setInternalView('summary')}
+          >
+            <FileText /> Resumo
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={activeView === 'graph' ? 'secondary' : 'ghost'}
+            role="tab"
+            aria-selected={activeView === 'graph'}
+            onClick={() => setInternalView('graph')}
+          >
+            <Network /> Grafo
+          </Button>
+        </div>}
         {/* <EditableTitle
           title={meetingTitle}
           isEditing={isEditingTitle}
@@ -268,7 +304,7 @@ export function SummaryPanel({
         /> */}
 
         {/* Button groups - only show when summary exists */}
-        {aiSummary && !isSummaryLoading && (
+        {activeView === 'summary' && aiSummary && !isSummaryLoading && (
           <div className="flex items-center justify-center w-full pt-0 gap-2">
             {/* Left-aligned: Summary Generator Button Group */}
             <div className="flex-shrink-0">
@@ -308,10 +344,14 @@ export function SummaryPanel({
             </div>
           </div>
         )}
-        <MeetingPropertiesEditor meetingId={meeting.id} />
+        {showProperties && <MeetingPropertiesEditor meetingId={meeting.id} />}
       </div>
 
-      {isSummaryLoading ? (
+      {activeView === 'graph' ? (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <MeetingKnowledgeGraph meetingId={meeting.id} fallbackGraph={savedTranscriptGraph} />
+        </div>
+      ) : isSummaryLoading ? (
         <div className="flex flex-col h-full">
           {/* Show button group during generation */}
           <div className="flex items-center justify-center pt-8 pb-4">
@@ -435,8 +475,7 @@ export function SummaryPanel({
               }}
             />
           </div>
-          <MeetingKnowledgeGraph meetingId={meeting.id} />
-          <RelatedMeetings meetingId={meeting.id} />
+          {showRelated && <RelatedMeetings meetingId={meeting.id} />}
           {summaryStatus !== 'idle' && (
             <div className={`mt-4 p-4 rounded-lg ${summaryStatus === 'error' ? 'bg-red-100 text-red-700' :
               summaryStatus === 'completed' ? 'bg-green-100 text-green-700' :

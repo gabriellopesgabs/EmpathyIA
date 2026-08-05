@@ -35,6 +35,23 @@ Minhas reuniões/
 Os arquivos Markdown são feitos para continuar úteis fora do EmpathyIA e podem ser versionados,
 copiados ou abertos em editores como Obsidian.
 
+Notas escritas e reuniões gravadas aparecem na mesma biblioteca **Notas**. O ícone de gravação
+identifica conteúdo capturado; o lápis identifica conteúdo escrito ou editado. Uma nota pode exibir
+os dois. Arquivar é reversível e excluir exige confirmação, oferecendo o arquivamento como opção.
+
+## Interface e atalhos
+
+A interface desktop acompanha automaticamente o tema claro ou escuro do sistema e organiza o app
+em navegação, biblioteca e documento. Durante uma gravação, é possível alternar entre transcrição,
+grafo ao vivo ou as duas visualizações lado a lado.
+
+- `Cmd/Ctrl + N`: nova nota Markdown
+- `Cmd/Ctrl + Shift + R`: iniciar ou encerrar gravação
+- `Cmd/Ctrl + K`: busca e comandos
+- `Cmd/Ctrl + Shift + K`: abrir Conhecimento
+- `Cmd/Ctrl + ,`: abrir Configurações
+- `Cmd/Ctrl + S`: salvar a nota atual
+
 ## Memória conectada
 
 A área **Conhecimento** transforma os documentos locais em uma memória navegável de projetos,

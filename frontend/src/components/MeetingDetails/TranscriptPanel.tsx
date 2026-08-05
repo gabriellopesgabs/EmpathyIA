@@ -1,7 +1,6 @@
 "use client";
 
 import { Transcript, TranscriptSegmentData } from '@/types';
-import { TranscriptView } from '@/components/TranscriptView';
 import { VirtualizedTranscriptView } from '@/components/VirtualizedTranscriptView';
 import { TranscriptButtonGroup } from './TranscriptButtonGroup';
 import { useMemo } from 'react';
@@ -65,7 +64,7 @@ export function TranscriptPanel({
   }, [transcripts, usePagination, segments]);
 
   return (
-    <div className="hidden md:flex md:w-1/4 lg:w-1/3 min-w-0 border-r border-gray-200 bg-white flex-col relative shrink-0">
+    <div className="flex h-full w-full min-w-0 flex-col bg-card">
       {/* Title area */}
       <div className="p-4 border-b border-gray-200">
         <TranscriptButtonGroup
@@ -101,7 +100,7 @@ export function TranscriptPanel({
       {!isRecording && convertedSegments.length > 0 && (
         <div className="p-3 border-t border-gray-200 bg-gray-50 flex flex-col gap-2">
           <div className="flex flex-wrap gap-1.5 items-center">
-            <span className="text-xs font-semibold text-gray-500 mr-1">Skills:</span>
+            <span className="mr-1 text-xs font-semibold text-muted-foreground">Perspectivas:</span>
             {[
               { name: '🛠️ Software Architect', prompt: 'Analyze with focus on software architecture, technical decisions, trade-offs, and technical debt.' },
               { name: '🏃 Agile Coach', prompt: 'Analyze team dynamics, agile processes, blockers, and improvements.' },
@@ -133,7 +132,7 @@ export function TranscriptPanel({
             })}
           </div>
           <textarea
-            placeholder="Add context for AI summary. For example people involved, meeting overview, objective etc..."
+            placeholder="Adicione contexto para o resumo: pessoas, objetivo ou informações importantes…"
             className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm min-h-[80px] resize-y"
             value={customPrompt}
             onChange={(e) => onPromptChange(e.target.value)}

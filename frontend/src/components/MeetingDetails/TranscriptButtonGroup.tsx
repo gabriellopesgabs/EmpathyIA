@@ -48,7 +48,7 @@ export function TranscriptButtonGroup({
             onCopyTranscript();
           }}
           disabled={transcriptCount === 0}
-          title={transcriptCount === 0 ? 'No transcript available' : 'Copy Transcript'}
+          title={transcriptCount === 0 ? 'Nenhuma transcrição disponível' : 'Copiar transcrição'}
         >
           <Copy />
           <span className="hidden lg:inline">Copy</span>

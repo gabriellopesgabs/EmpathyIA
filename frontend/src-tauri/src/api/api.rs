@@ -30,6 +30,15 @@ pub struct ApiResponse<T> {
 pub struct Meeting {
     pub id: String,
     pub title: String,
+    pub recorded: bool,
+    pub written: bool,
+    pub archived: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NoteCreateResult {
+    pub id: String,
+    pub folder_path: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -345,6 +354,31 @@ pub async fn api_get_meetings<R: Runtime>(
                 .map(|m| Meeting {
                     id: m.id,
                     title: m.title,
+                    recorded: m
+                        .folder_path
+                        .as_deref()
+                        .filter(|path| !path.trim().is_empty())
+                        .is_none_or(|path| {
+                            crate::meeting_files::meeting_has_recorded_content(
+                                std::path::Path::new(path),
+                            )
+                        }),
+                    written: m
+                        .folder_path
+                        .as_deref()
+                        .filter(|path| !path.trim().is_empty())
+                        .is_some_and(|path| {
+                            crate::meeting_files::meeting_has_written_content(std::path::Path::new(
+                                path,
+                            ))
+                        }),
+                    archived: m
+                        .folder_path
+                        .as_deref()
+                        .filter(|path| !path.trim().is_empty())
+                        .is_some_and(|path| {
+                            crate::meeting_files::meeting_is_archived(std::path::Path::new(path))
+                        }),
                 })
                 .collect();
             Ok(result)
@@ -354,6 +388,175 @@ pub async fn api_get_meetings<R: Runtime>(
             Err(e.to_string())
         }
     }
+}
+
+#[tauri::command]
+pub async fn api_create_note<R: Runtime>(
+    app: AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    title: String,
+    content: String,
+    created_at: Option<String>,
+) -> Result<NoteCreateResult, String> {
+    let title = title.trim();
+    if title.is_empty() {
+        return Err("O título da nota não pode ficar vazio".into());
+    }
+    let id = format!("note-{}", uuid::Uuid::new_v4());
+    let now = chrono::Utc::now();
+    let created = created_at
+        .as_deref()
+        .and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
+        .map(|value| value.with_timezone(&chrono::Utc))
+        .unwrap_or(now);
+    let preferences = crate::audio::recording_preferences::load_recording_preferences(&app)
+        .await
+        .map_err(|error| format!("Não foi possível carregar a pasta de notas: {error}"))?;
+    crate::audio::recording_preferences::ensure_recordings_directory(&preferences.save_folder)
+        .map_err(|error| format!("Não foi possível preparar a pasta de notas: {error}"))?;
+    let safe_title = crate::audio::audio_processing::sanitize_filename(title);
+    let short_id = id
+        .trim_start_matches("note-")
+        .chars()
+        .take(8)
+        .collect::<String>();
+    let folder = preferences.save_folder.join(format!(
+        "{}_{}_{}",
+        if safe_title.is_empty() {
+            "Nota"
+        } else {
+            &safe_title
+        },
+        now.format("%Y-%m-%d_%H-%M-%S"),
+        short_id
+    ));
+    std::fs::create_dir_all(&folder)
+        .map_err(|error| format!("Não foi possível criar a pasta da nota: {error}"))?;
+    let created_string = created.to_rfc3339();
+    let updated_string = now.to_rfc3339();
+    if let Err(error) = crate::meeting_files::write_written_note(
+        &folder,
+        &id,
+        title,
+        &created_string,
+        &updated_string,
+        &content,
+    ) {
+        let _ = std::fs::remove_dir_all(&folder);
+        return Err(format!(
+            "Não foi possível criar o Markdown da nota: {error}"
+        ));
+    }
+    if let Err(error) = crate::meeting_files::update_machine_metadata(
+        &folder,
+        &id,
+        title,
+        crate::meeting_files::MEETING_FILE,
+    ) {
+        let _ = std::fs::remove_dir_all(&folder);
+        return Err(format!(
+            "Não foi possível criar os metadados da nota: {error}"
+        ));
+    }
+
+    let result = sqlx::query(
+        "INSERT INTO meetings (id, title, created_at, updated_at, folder_path) VALUES (?, ?, ?, ?, ?)",
+    )
+    .bind(&id)
+    .bind(title)
+    .bind(created)
+    .bind(now)
+    .bind(folder.to_string_lossy().to_string())
+    .execute(state.db_manager.pool())
+    .await;
+    if let Err(error) = result {
+        let _ = std::fs::remove_dir_all(&folder);
+        return Err(format!("Não foi possível indexar a nota: {error}"));
+    }
+
+    Ok(NoteCreateResult {
+        id,
+        folder_path: folder.to_string_lossy().to_string(),
+    })
+}
+
+#[tauri::command]
+pub async fn api_get_note<R: Runtime>(
+    _app: AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+) -> Result<crate::meeting_files::NoteDocument, String> {
+    let meeting = MeetingsRepository::get_meeting_metadata(state.db_manager.pool(), &meeting_id)
+        .await
+        .map_err(|error| format!("Não foi possível carregar a nota: {error}"))?
+        .ok_or_else(|| "Nota não encontrada".to_string())?;
+    let folder = meeting
+        .folder_path
+        .as_deref()
+        .filter(|path| !path.trim().is_empty())
+        .ok_or_else(|| "A nota não possui uma pasta Markdown".to_string())?;
+    crate::meeting_files::read_note_document(std::path::Path::new(folder))
+        .map_err(|error| format!("Não foi possível ler o Markdown da nota: {error}"))
+}
+
+#[tauri::command]
+pub async fn api_save_note<R: Runtime>(
+    _app: AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+    title: String,
+    content: String,
+) -> Result<crate::meeting_files::NoteDocument, String> {
+    let title = title.trim();
+    if title.is_empty() {
+        return Err("O título da nota não pode ficar vazio".into());
+    }
+    let meeting = MeetingsRepository::get_meeting_metadata(state.db_manager.pool(), &meeting_id)
+        .await
+        .map_err(|error| format!("Não foi possível carregar a nota: {error}"))?
+        .ok_or_else(|| "Nota não encontrada".to_string())?;
+    let folder = meeting
+        .folder_path
+        .as_deref()
+        .filter(|path| !path.trim().is_empty())
+        .ok_or_else(|| "A nota não possui uma pasta Markdown".to_string())?;
+    let updated = chrono::Utc::now();
+    let document = crate::meeting_files::save_note_document(
+        std::path::Path::new(folder),
+        title,
+        &content,
+        &updated.to_rfc3339(),
+    )
+    .map_err(|error| format!("Não foi possível salvar o Markdown da nota: {error}"))?;
+    MeetingsRepository::update_meeting_title(state.db_manager.pool(), &meeting_id, title)
+        .await
+        .map_err(|error| format!("A nota foi salva, mas o índice não foi atualizado: {error}"))?;
+    Ok(document)
+}
+
+#[tauri::command]
+pub async fn api_set_meeting_archived<R: Runtime>(
+    _app: AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+    archived: bool,
+) -> Result<serde_json::Value, String> {
+    let meeting = MeetingsRepository::get_meeting_metadata(state.db_manager.pool(), &meeting_id)
+        .await
+        .map_err(|error| format!("Failed to load note: {error}"))?
+        .ok_or_else(|| "Nota não encontrada".to_string())?;
+    let folder_path = meeting
+        .folder_path
+        .as_deref()
+        .filter(|path| !path.trim().is_empty())
+        .ok_or_else(|| "Esta nota não possui uma pasta Markdown para arquivamento".to_string())?;
+    crate::meeting_files::set_meeting_archived(
+        std::path::Path::new(folder_path),
+        archived,
+        &chrono::Utc::now().to_rfc3339(),
+    )
+    .map_err(|error| format!("Não foi possível atualizar o arquivo da nota: {error}"))?;
+    Ok(serde_json::json!({ "archived": archived }))
 }
 
 #[tauri::command]
@@ -989,6 +1192,12 @@ pub async fn api_save_meeting_title<R: Runtime>(
                         &meeting.created_at.0.to_rfc3339(),
                         &updated_at,
                     )
+                    .and_then(|_| {
+                        crate::meeting_files::mark_meeting_written(
+                            std::path::Path::new(folder_path),
+                            &updated_at,
+                        )
+                    })
                     .and_then(|_| {
                         crate::meeting_files::update_machine_metadata(
                             std::path::Path::new(folder_path),

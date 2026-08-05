@@ -17,8 +17,9 @@
                 "height": 700,
                 "resizable": true,
                 "fullscreen": false,
-                "theme": "Light",
-                "decorations": true
+                "decorations": true,
+                "hiddenTitle": true,
+                "titleBarStyle": "Overlay"
             }
         ],
         "macOSPrivateApi": true,

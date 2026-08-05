@@ -62,7 +62,7 @@ export function SummaryModelSettings({ refetchTrigger }: SummaryModelSettingsPro
       }
     } catch (error) {
       console.error('Failed to fetch model config:', error);
-      toast.error('Failed to load model settings');
+      toast.error('Não foi possível carregar os modelos');
     }
   }, []);
 
@@ -115,10 +115,10 @@ export function SummaryModelSettings({ refetchTrigger }: SummaryModelSettingsPro
       const { emit } = await import('@tauri-apps/api/event');
       await emit('model-config-updated', config);
 
-      toast.success('Model settings saved successfully');
+      toast.success('Configuração do modelo salva');
     } catch (error) {
       console.error('Error saving model config:', error);
-      toast.error('Failed to save model settings');
+      toast.error('Não foi possível salvar o modelo');
     }
   };
 
@@ -127,8 +127,8 @@ export function SummaryModelSettings({ refetchTrigger }: SummaryModelSettingsPro
       <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Auto Summary</h3>
-            <p className="text-sm text-gray-600">Auto Generating summary after meeting completion(Stopping)</p>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Resumo automático</h3>
+            <p className="text-sm text-gray-600">Gerar o resumo quando a gravação for concluída.</p>
           </div>
           <Switch checked={isAutoSummary} onCheckedChange={toggleIsAutoSummary} />
         </div>
@@ -137,17 +137,29 @@ export function SummaryModelSettings({ refetchTrigger }: SummaryModelSettingsPro
       <SummaryLanguageSettings />
 
       <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-        <h3 className="text-lg font-semibold mb-4">Summary Model Configuration</h3>
-        <p className="text-sm text-gray-600 mb-6">
-          Configure the AI model used for generating meeting summaries.
+        <h3 className="text-lg font-semibold mb-4">Modelo para resumos</h3>
+        <div className="settings-current-choice">
+          <div>
+            <span>Em uso</span>
+            <strong>{modelConfig.provider === 'builtin-ai' ? 'IA integrada e offline' : `${modelConfig.provider} · ${modelConfig.model}`}</strong>
+          </div>
+          <span className="status-pill">Configurado</span>
+        </div>
+        <p className="text-sm text-gray-600 mt-4">
+          O Empathy usa esta opção para criar resumos. Altere apenas se precisar de outro provedor ou modelo.
         </p>
 
-        <ModelSettingsModal
-          modelConfig={modelConfig}
-          setModelConfig={setModelConfig}
-          onSave={handleSaveModelConfig}
-          skipInitialFetch={true}
-        />
+        <details className="advanced-settings mt-5">
+          <summary>Configuração avançada</summary>
+          <div className="mt-5">
+            <ModelSettingsModal
+              modelConfig={modelConfig}
+              setModelConfig={setModelConfig}
+              onSave={handleSaveModelConfig}
+              skipInitialFetch={true}
+            />
+          </div>
+        </details>
       </div>
     </div>
   );
