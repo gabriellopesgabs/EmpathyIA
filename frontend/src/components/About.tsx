@@ -29,11 +29,19 @@ export function About() {
             <div className="text-center">
                 <div className="mb-3">
                     <Image
-                        src="icon_128x128.png"
-                        alt="Empathy.AI Logo"
-                        width={64}
-                        height={64}
-                        className="mx-auto"
+                        src="/brand/empathy-lettering-black.svg"
+                        alt="Empathy — Tech Agency, Human Inside."
+                        width={220}
+                        height={54}
+                        className="mx-auto h-auto w-[220px] dark:hidden"
+                    />
+                    <Image
+                        src="/brand/empathy-lettering-white.svg"
+                        alt=""
+                        aria-hidden="true"
+                        width={220}
+                        height={54}
+                        className="mx-auto hidden h-auto w-[220px] dark:block"
                     />
                 </div>
                 {/* <h1 className="text-xl font-bold text-gray-900">MyMeet</h1> */}
