@@ -131,6 +131,7 @@ export interface ExternalMeeting {
 }
 
 export type MeetingAgentEventType =
+  | 'planned'
   | 'invited'
   | 'waiting'
   | 'joined'
@@ -139,18 +140,29 @@ export type MeetingAgentEventType =
   | 'consent-denied'
   | 'transcribing'
   | 'paused'
+  | 'leaving'
   | 'left'
   | 'error';
 
 export interface MeetingAgentEvent {
   schema: 1;
   event_id: string;
+  session_id: string;
   meeting_id: string;
   provider: Exclude<IntegrationProvider, 'microsoft'>;
-  event_type: MeetingAgentEventType;
+  state: MeetingAgentEventType;
   occurred_at: string;
-  actor?: string | null;
+  actor: string;
   details?: string | null;
+  service_event_id?: string | null;
+  recording_status_confirmed: boolean;
+}
+
+export interface MeetingAgentAudit {
+  meeting_id: string;
+  current_state?: MeetingAgentEventType | null;
+  events: MeetingAgentEvent[];
+  path: string;
 }
 
 export interface ContextSourceReceipt {

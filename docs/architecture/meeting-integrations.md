@@ -110,3 +110,24 @@ prompt e nunca pode substituir a instrução da Skill.
 Desconectar uma conta remove tokens do cofre e impede novas leituras. Notas já
 aprovadas pelo usuário permanecem portáteis, com recibos suficientes para
 explicar a origem, mas sem credenciais ou cópias ocultas de mensagens.
+
+## Fronteira de produção do agente Teams
+
+O agente real é um serviço separado do desktop. A documentação atual da
+Microsoft exige um bot de chamadas/reuniões, permissões Graph com consentimento
+administrativo e manifesto Teams com `supportsCalling`. Para acessar áudio em
+tempo real, o serviço precisa usar o SDK
+`Microsoft.Graph.Communications.Calls.Media` em C#/.NET e, em produção, rodar
+em Windows Server no Azure. O serviço não pode persistir mídia ou derivados
+antes de confirmar `updateRecordingStatus`.
+
+Referências primárias:
+
+- [Registrar um bot de chamadas e reuniões](https://learn.microsoft.com/en-us/microsoftteams/platform/bots/calls-and-meetings/registering-calling-bot)
+- [Requisitos de bots com mídia hospedada pela aplicação](https://learn.microsoft.com/en-us/microsoftteams/platform/bots/calls-and-meetings/requirements-considerations-application-hosted-media-bots)
+- [Escolher hospedagem de mídia e estado de gravação](https://learn.microsoft.com/en-us/graph/cloud-communications-media)
+
+O desktop registra `agent-audit.md` como uma sequência acrescentável. A
+máquina de estados proíbe transcrição antes de consentimento e antes da
+confirmação do estado de gravação pelo provedor; repetição de webhook é
+idempotente e transições impossíveis não alteram o arquivo.

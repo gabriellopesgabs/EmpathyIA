@@ -41,6 +41,7 @@ pub mod database;
 pub mod groq;
 pub mod integrations;
 pub mod knowledge;
+pub mod meeting_agent;
 pub mod meeting_files;
 pub mod notifications;
 pub mod ollama;
@@ -755,6 +756,7 @@ pub fn run() {
             participant_memory::api_save_participant_memory,
             participant_memory::api_delete_participant_memory,
             participant_memory::api_merge_participant_memories,
+            meeting_agent::api_get_meeting_agent_audit,
             integrations::api_get_integration_capabilities,
             integrations::api_get_microsoft_auth_readiness,
             integrations::api_connect_microsoft_calendar,
