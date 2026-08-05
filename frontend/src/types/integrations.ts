@@ -39,8 +39,35 @@ export interface ConnectedAccount {
   email: string;
   display_name: string;
   granted_permissions: ConnectorPermission[];
+  token_expires_at?: string | null;
   connected_at: string;
   updated_at: string;
+}
+
+export interface MicrosoftAuthReadiness {
+  configured: boolean;
+  tenant: string;
+  requested_scopes: string[];
+  missing: string[];
+}
+
+export interface OutlookEventParticipant {
+  display_name: string;
+  email: string;
+  response?: string | null;
+}
+
+export interface OutlookCalendarEvent {
+  id: string;
+  title: string;
+  organizer?: OutlookEventParticipant | null;
+  attendees: OutlookEventParticipant[];
+  starts_at: string;
+  ends_at: string;
+  location?: string | null;
+  join_url?: string | null;
+  meeting_provider?: 'microsoft-teams' | 'zoom' | 'google-meet' | 'other' | null;
+  web_url?: string | null;
 }
 
 export interface ParticipantIdentity {

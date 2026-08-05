@@ -2,9 +2,17 @@
 //!
 //! Tokens never belong in these files. OAuth credentials are stored in the operating
 //! system credential vault; portable metadata and audit receipts remain file-first.
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+use rand::{rngs::OsRng, RngCore};
 use serde::{Deserialize, Serialize};
-use std::{fs, io::Write, path::PathBuf};
+use sha2::{Digest, Sha256};
+use std::{fs, io::Write, path::PathBuf, process::Command, time::Duration};
 use tauri::{AppHandle, Manager, Runtime};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::TcpListener,
+    time::timeout,
+};
 
 const SCHEMA: u32 = 1;
 const DIRECTORY: &str = "integrations";
@@ -101,8 +109,123 @@ pub struct ConnectedAccount {
     pub email: String,
     pub display_name: String,
     pub granted_permissions: Vec<ConnectorPermission>,
+    pub token_expires_at: Option<String>,
     pub connected_at: String,
     pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct MicrosoftAuthReadiness {
+    pub configured: bool,
+    pub tenant: String,
+    pub requested_scopes: Vec<&'static str>,
+    pub missing: Vec<&'static str>,
+}
+
+#[derive(Debug, Deserialize)]
+struct MicrosoftTokenResponse {
+    access_token: String,
+    refresh_token: Option<String>,
+    expires_in: i64,
+    scope: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct MicrosoftGraphProfile {
+    id: String,
+    #[serde(rename = "displayName")]
+    display_name: String,
+    mail: Option<String>,
+    #[serde(rename = "userPrincipalName")]
+    user_principal_name: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct OutlookEventParticipant {
+    pub display_name: String,
+    pub email: String,
+    pub response: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct OutlookCalendarEvent {
+    pub id: String,
+    pub title: String,
+    pub organizer: Option<OutlookEventParticipant>,
+    pub attendees: Vec<OutlookEventParticipant>,
+    pub starts_at: String,
+    pub ends_at: String,
+    pub location: Option<String>,
+    pub join_url: Option<String>,
+    pub meeting_provider: Option<String>,
+    pub web_url: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GraphEmailAddress {
+    name: Option<String>,
+    address: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GraphRecipient {
+    #[serde(rename = "emailAddress")]
+    email_address: GraphEmailAddress,
+}
+
+#[derive(Debug, Deserialize)]
+struct GraphResponseStatus {
+    response: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GraphAttendee {
+    #[serde(rename = "emailAddress")]
+    email_address: GraphEmailAddress,
+    status: Option<GraphResponseStatus>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GraphDateTime {
+    #[serde(rename = "dateTime")]
+    date_time: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GraphLocation {
+    #[serde(rename = "displayName")]
+    display_name: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GraphOnlineMeeting {
+    #[serde(rename = "joinUrl")]
+    join_url: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GraphCalendarEvent {
+    id: String,
+    subject: Option<String>,
+    organizer: Option<GraphRecipient>,
+    #[serde(default)]
+    attendees: Vec<GraphAttendee>,
+    start: GraphDateTime,
+    end: GraphDateTime,
+    location: Option<GraphLocation>,
+    #[serde(rename = "onlineMeetingUrl")]
+    online_meeting_url: Option<String>,
+    #[serde(rename = "onlineMeeting")]
+    online_meeting: Option<GraphOnlineMeeting>,
+    #[serde(rename = "webLink")]
+    web_link: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GraphCalendarPage {
+    value: Vec<GraphCalendarEvent>,
+    #[serde(rename = "@odata.nextLink")]
+    next_link: Option<String>,
 }
 
 impl ConnectedAccount {
@@ -348,9 +471,542 @@ fn delete_token(
     }
 }
 
+fn save_token(
+    provider: &IntegrationProvider,
+    account_id: &str,
+    token_kind: &str,
+    token: &str,
+) -> Result<(), String> {
+    if token.trim().is_empty() {
+        return Err("A Microsoft retornou uma credencial vazia".into());
+    }
+    let account = keyring_account(provider, account_id, token_kind)?;
+    keyring::Entry::new(KEYRING_SERVICE, &account)
+        .map_err(|error| error.to_string())?
+        .set_password(token)
+        .map_err(|error| format!("Não foi possível salvar a credencial segura: {error}"))
+}
+
+fn get_token(
+    provider: &IntegrationProvider,
+    account_id: &str,
+    token_kind: &str,
+) -> Result<Option<String>, String> {
+    let account = keyring_account(provider, account_id, token_kind)?;
+    let entry =
+        keyring::Entry::new(KEYRING_SERVICE, &account).map_err(|error| error.to_string())?;
+    match entry.get_password() {
+        Ok(token) => Ok(Some(token)),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(error) => Err(format!("Não foi possível ler a credencial segura: {error}")),
+    }
+}
+
+fn microsoft_client_id() -> Option<String> {
+    std::env::var("EMPATHY_MICROSOFT_CLIENT_ID")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| option_env!("EMPATHY_MICROSOFT_CLIENT_ID").map(str::to_string))
+}
+
+fn microsoft_tenant() -> String {
+    std::env::var("EMPATHY_MICROSOFT_TENANT")
+        .ok()
+        .filter(|value| validate_identifier(value, "tenant Microsoft").is_ok())
+        .unwrap_or_else(|| "common".into())
+}
+
+const MICROSOFT_CALENDAR_SCOPES: &[&str] = &[
+    "openid",
+    "profile",
+    "offline_access",
+    "User.Read",
+    "Calendars.ReadBasic",
+];
+
+fn random_urlsafe(bytes: usize) -> String {
+    let mut value = vec![0_u8; bytes];
+    OsRng.fill_bytes(&mut value);
+    URL_SAFE_NO_PAD.encode(value)
+}
+
+fn open_system_browser(url: &str) -> Result<(), String> {
+    let parsed = url::Url::parse(url).map_err(|_| "URL de autenticação inválida".to_string())?;
+    if parsed.scheme() != "https" || parsed.host_str() != Some("login.microsoftonline.com") {
+        return Err("O login só pode ser aberto no domínio da Microsoft".into());
+    }
+    let status = if cfg!(target_os = "windows") {
+        Command::new("explorer.exe").arg(url).status()
+    } else if cfg!(target_os = "macos") {
+        Command::new("open").arg(url).status()
+    } else {
+        Command::new("xdg-open").arg(url).status()
+    }
+    .map_err(|error| format!("Não foi possível abrir o navegador: {error}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("O navegador terminou com status {status}"))
+    }
+}
+
+async fn receive_oauth_callback(
+    listener: TcpListener,
+    expected_state: &str,
+) -> Result<String, String> {
+    let (mut stream, _) = timeout(Duration::from_secs(300), listener.accept())
+        .await
+        .map_err(|_| "O login Microsoft expirou após cinco minutos".to_string())?
+        .map_err(|error| error.to_string())?;
+    let mut buffer = vec![0_u8; 16 * 1024];
+    let read = timeout(Duration::from_secs(10), stream.read(&mut buffer))
+        .await
+        .map_err(|_| "A resposta do login expirou".to_string())?
+        .map_err(|error| error.to_string())?;
+    let request = String::from_utf8_lossy(&buffer[..read]);
+    let path = request
+        .lines()
+        .next()
+        .and_then(|line| line.split_whitespace().nth(1))
+        .ok_or_else(|| "Callback Microsoft inválido".to_string())?;
+    let callback = url::Url::parse(&format!("http://localhost{path}"))
+        .map_err(|_| "Callback Microsoft inválido".to_string())?;
+    let query = callback
+        .query_pairs()
+        .collect::<std::collections::HashMap<_, _>>();
+    let state_matches = query
+        .get("state")
+        .is_some_and(|value| value.as_ref() == expected_state);
+    let result = if !state_matches {
+        Err("O estado do login não corresponde à solicitação original".to_string())
+    } else if let Some(error) = query
+        .get("error_description")
+        .or_else(|| query.get("error"))
+    {
+        Err(format!("Login Microsoft cancelado: {error}"))
+    } else {
+        query
+            .get("code")
+            .map(|value| value.to_string())
+            .ok_or_else(|| "A Microsoft não retornou o código de autorização".to_string())
+    };
+    let success = result.is_ok();
+    let heading = if success {
+        "Conta conectada"
+    } else {
+        "Não foi possível conectar"
+    };
+    let message = if success {
+        "Você pode voltar ao Empathy."
+    } else {
+        "Volte ao Empathy para revisar o erro."
+    };
+    let body = format!("<!doctype html><meta charset=\"utf-8\"><title>Empathy</title><style>body{{font:16px -apple-system,BlinkMacSystemFont,sans-serif;background:#f5f5f7;color:#1d1d1f;display:grid;place-items:center;min-height:100vh;margin:0}}main{{max-width:420px;padding:32px;border-radius:20px;background:white;box-shadow:0 12px 40px #0001}}h1{{font-size:24px}}</style><main><h1>{heading}</h1><p>{message}</p></main>");
+    let response = format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        body.len(),
+        body
+    );
+    let _ = stream.write_all(response.as_bytes()).await;
+    result
+}
+
+async fn exchange_microsoft_code(
+    tenant: &str,
+    client_id: &str,
+    code: &str,
+    verifier: &str,
+    redirect_uri: &str,
+) -> Result<MicrosoftTokenResponse, String> {
+    let scope = MICROSOFT_CALENDAR_SCOPES.join(" ");
+    let response = reqwest::Client::new()
+        .post(format!(
+            "https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token"
+        ))
+        .form(&[
+            ("client_id", client_id),
+            ("grant_type", "authorization_code"),
+            ("code", code),
+            ("redirect_uri", redirect_uri),
+            ("code_verifier", verifier),
+            ("scope", scope.as_str()),
+        ])
+        .send()
+        .await
+        .map_err(|error| format!("Falha ao contatar a Microsoft: {error}"))?;
+    let status = response.status();
+    let body = response.text().await.map_err(|error| error.to_string())?;
+    if !status.is_success() {
+        let detail = serde_json::from_str::<serde_json::Value>(&body)
+            .ok()
+            .and_then(|value| {
+                value
+                    .get("error_description")
+                    .and_then(|item| item.as_str())
+                    .map(str::to_string)
+            })
+            .unwrap_or_else(|| format!("HTTP {status}"));
+        return Err(format!("A Microsoft recusou o login: {detail}"));
+    }
+    serde_json::from_str(&body).map_err(|error| format!("Resposta de token inválida: {error}"))
+}
+
+async fn refresh_microsoft_token(
+    tenant: &str,
+    client_id: &str,
+    refresh_token: &str,
+) -> Result<MicrosoftTokenResponse, String> {
+    let scope = MICROSOFT_CALENDAR_SCOPES.join(" ");
+    let response = reqwest::Client::new()
+        .post(format!(
+            "https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token"
+        ))
+        .form(&[
+            ("client_id", client_id),
+            ("grant_type", "refresh_token"),
+            ("refresh_token", refresh_token),
+            ("scope", scope.as_str()),
+        ])
+        .send()
+        .await
+        .map_err(|error| format!("Falha ao renovar a sessão Microsoft: {error}"))?;
+    let status = response.status();
+    let body = response.text().await.map_err(|error| error.to_string())?;
+    if !status.is_success() {
+        let detail = serde_json::from_str::<serde_json::Value>(&body)
+            .ok()
+            .and_then(|value| {
+                value
+                    .get("error_description")
+                    .and_then(|item| item.as_str())
+                    .map(str::to_string)
+            })
+            .unwrap_or_else(|| format!("HTTP {status}"));
+        return Err(format!(
+            "A sessão Microsoft precisa ser conectada novamente: {detail}"
+        ));
+    }
+    serde_json::from_str(&body).map_err(|error| format!("Resposta de renovação inválida: {error}"))
+}
+
+async fn microsoft_access_token<R: Runtime>(
+    app: &AppHandle<R>,
+    account_id: &str,
+) -> Result<String, String> {
+    validate_identifier(account_id, "conta")?;
+    let mut accounts = read_accounts(app)?;
+    let index = accounts
+        .iter()
+        .position(|account| {
+            account.id == account_id && account.provider == IntegrationProvider::Microsoft
+        })
+        .ok_or_else(|| "Conta Microsoft não encontrada".to_string())?;
+    let account = &accounts[index];
+    let valid_until = account
+        .token_expires_at
+        .as_deref()
+        .and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok());
+    if valid_until
+        .is_some_and(|expires| expires > chrono::Utc::now() + chrono::Duration::minutes(2))
+    {
+        if let Some(access) = get_token(&account.provider, &account.id, "access")? {
+            return Ok(access);
+        }
+    }
+    let refresh = get_token(&account.provider, &account.id, "refresh")?
+        .ok_or_else(|| "A conta Microsoft precisa ser conectada novamente".to_string())?;
+    let client_id = microsoft_client_id().ok_or_else(|| {
+        "O Client ID público do Empathy não está disponível nesta instalação".to_string()
+    })?;
+    let tenant = account.tenant_id.as_deref().unwrap_or("common");
+    let token = refresh_microsoft_token(tenant, &client_id, &refresh).await?;
+    save_token(
+        &account.provider,
+        &account.id,
+        "access",
+        &token.access_token,
+    )?;
+    if let Some(rotated_refresh) = token.refresh_token.as_deref() {
+        save_token(&account.provider, &account.id, "refresh", rotated_refresh)?;
+    }
+    let now = chrono::Utc::now();
+    accounts[index].token_expires_at =
+        Some((now + chrono::Duration::seconds(token.expires_in)).to_rfc3339());
+    accounts[index].updated_at = now.to_rfc3339();
+    write_accounts(app, &accounts)?;
+    Ok(token.access_token)
+}
+
+async fn microsoft_profile(access_token: &str) -> Result<MicrosoftGraphProfile, String> {
+    let response = reqwest::Client::new()
+        .get("https://graph.microsoft.com/v1.0/me?$select=id,displayName,mail,userPrincipalName")
+        .bearer_auth(access_token)
+        .send()
+        .await
+        .map_err(|error| format!("Falha ao consultar o perfil Microsoft: {error}"))?;
+    if !response.status().is_success() {
+        return Err(format!(
+            "A Microsoft recusou a leitura do perfil: HTTP {}",
+            response.status()
+        ));
+    }
+    response
+        .json()
+        .await
+        .map_err(|error| format!("Perfil Microsoft inválido: {error}"))
+}
+
+fn normalize_graph_datetime(value: &str) -> Result<String, String> {
+    if let Ok(date) = chrono::DateTime::parse_from_rfc3339(value) {
+        return Ok(date.with_timezone(&chrono::Utc).to_rfc3339());
+    }
+    let naive = chrono::NaiveDateTime::parse_from_str(value, "%Y-%m-%dT%H:%M:%S%.f")
+        .map_err(|_| format!("Data inválida retornada pelo Outlook: {value}"))?;
+    Ok(naive.and_utc().to_rfc3339())
+}
+
+fn participant_from_graph(
+    email: GraphEmailAddress,
+    response: Option<String>,
+) -> Option<OutlookEventParticipant> {
+    let address = email.address?.trim().to_string();
+    if address.is_empty() {
+        return None;
+    }
+    Some(OutlookEventParticipant {
+        display_name: email
+            .name
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(|| address.clone()),
+        email: address,
+        response,
+    })
+}
+
+fn meeting_provider(join_url: Option<&str>) -> Option<String> {
+    let host = join_url
+        .and_then(|value| url::Url::parse(value).ok())
+        .and_then(|value| value.host_str().map(str::to_ascii_lowercase));
+    match host.as_deref() {
+        Some(host) if host == "teams.microsoft.com" || host.ends_with(".teams.microsoft.com") => {
+            Some("microsoft-teams".into())
+        }
+        Some(host) if host == "zoom.us" || host.ends_with(".zoom.us") => Some("zoom".into()),
+        Some("meet.google.com") => Some("google-meet".into()),
+        Some(_) => Some("other".into()),
+        None => None,
+    }
+}
+
+fn normalize_calendar_event(event: GraphCalendarEvent) -> Result<OutlookCalendarEvent, String> {
+    let join_url = event
+        .online_meeting
+        .and_then(|meeting| meeting.join_url)
+        .or(event.online_meeting_url);
+    Ok(OutlookCalendarEvent {
+        id: event.id,
+        title: event
+            .subject
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(|| "Reunião sem título".into()),
+        organizer: event
+            .organizer
+            .and_then(|recipient| participant_from_graph(recipient.email_address, None)),
+        attendees: event
+            .attendees
+            .into_iter()
+            .filter_map(|attendee| {
+                participant_from_graph(
+                    attendee.email_address,
+                    attendee.status.and_then(|status| status.response),
+                )
+            })
+            .collect(),
+        starts_at: normalize_graph_datetime(&event.start.date_time)?,
+        ends_at: normalize_graph_datetime(&event.end.date_time)?,
+        location: event
+            .location
+            .and_then(|location| location.display_name)
+            .filter(|value| !value.trim().is_empty()),
+        meeting_provider: meeting_provider(join_url.as_deref()),
+        join_url,
+        web_url: event.web_link,
+    })
+}
+
 #[tauri::command]
 pub fn api_get_integration_capabilities() -> Vec<IntegrationCapability> {
     capabilities()
+}
+
+#[tauri::command]
+pub fn api_get_microsoft_auth_readiness() -> MicrosoftAuthReadiness {
+    let configured = microsoft_client_id().is_some();
+    MicrosoftAuthReadiness {
+        configured,
+        tenant: microsoft_tenant(),
+        requested_scopes: MICROSOFT_CALENDAR_SCOPES.to_vec(),
+        missing: if configured {
+            Vec::new()
+        } else {
+            vec!["EMPATHY_MICROSOFT_CLIENT_ID"]
+        },
+    }
+}
+
+#[tauri::command]
+pub async fn api_connect_microsoft_calendar<R: Runtime>(
+    app: AppHandle<R>,
+) -> Result<ConnectedAccount, String> {
+    let client_id = microsoft_client_id().ok_or_else(|| {
+        "O Client ID público do Empathy ainda não foi configurado no Microsoft Entra".to_string()
+    })?;
+    let tenant = microsoft_tenant();
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .map_err(|error| error.to_string())?;
+    let port = listener
+        .local_addr()
+        .map_err(|error| error.to_string())?
+        .port();
+    let redirect_uri = format!("http://127.0.0.1:{port}/oauth/callback");
+    let verifier = random_urlsafe(64);
+    let challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()));
+    let state = random_urlsafe(32);
+    let mut authorization = url::Url::parse(&format!(
+        "https://login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize"
+    ))
+    .map_err(|error| error.to_string())?;
+    authorization
+        .query_pairs_mut()
+        .append_pair("client_id", &client_id)
+        .append_pair("response_type", "code")
+        .append_pair("redirect_uri", &redirect_uri)
+        .append_pair("response_mode", "query")
+        .append_pair("scope", &MICROSOFT_CALENDAR_SCOPES.join(" "))
+        .append_pair("state", &state)
+        .append_pair("code_challenge", &challenge)
+        .append_pair("code_challenge_method", "S256");
+    open_system_browser(authorization.as_str())?;
+    let code = receive_oauth_callback(listener, &state).await?;
+    let token =
+        exchange_microsoft_code(&tenant, &client_id, &code, &verifier, &redirect_uri).await?;
+    let granted_scopes = token.scope.as_deref().unwrap_or_default();
+    if !granted_scopes
+        .split_whitespace()
+        .any(|scope| scope.eq_ignore_ascii_case("Calendars.ReadBasic"))
+    {
+        return Err("A Microsoft não concedeu a permissão mínima Calendars.ReadBasic".into());
+    }
+    let refresh_token = token
+        .refresh_token
+        .as_deref()
+        .ok_or_else(|| "A Microsoft não retornou autorização para renovar a sessão".to_string())?;
+    let profile = microsoft_profile(&token.access_token).await?;
+    let account_id = format!("microsoft-{}", profile.id);
+    let now = chrono::Utc::now();
+    let account = ConnectedAccount {
+        schema: SCHEMA,
+        id: account_id.clone(),
+        provider: IntegrationProvider::Microsoft,
+        subject: profile.id,
+        tenant_id: (tenant != "common").then_some(tenant),
+        email: profile.mail.unwrap_or(profile.user_principal_name),
+        display_name: profile.display_name,
+        granted_permissions: vec![ConnectorPermission::CalendarBasic],
+        token_expires_at: Some((now + chrono::Duration::seconds(token.expires_in)).to_rfc3339()),
+        connected_at: now.to_rfc3339(),
+        updated_at: now.to_rfc3339(),
+    };
+    account.validate()?;
+    save_token(
+        &account.provider,
+        &account_id,
+        "access",
+        &token.access_token,
+    )?;
+    if let Err(error) = save_token(&account.provider, &account_id, "refresh", refresh_token) {
+        let _ = delete_token(&account.provider, &account_id, "access");
+        return Err(error);
+    }
+    let mut accounts = read_accounts(&app)?;
+    accounts.retain(|candidate| {
+        !(candidate.provider == IntegrationProvider::Microsoft
+            && candidate.subject == account.subject)
+    });
+    accounts.push(account.clone());
+    if let Err(error) = write_accounts(&app, &accounts) {
+        let _ = delete_token(&account.provider, &account_id, "access");
+        let _ = delete_token(&account.provider, &account_id, "refresh");
+        return Err(error);
+    }
+    let mut flags = read_flags(&app)?;
+    flags.outlook_calendar = true;
+    if let Err(error) = write_flags(&app, &flags) {
+        accounts.retain(|candidate| candidate.id != account_id);
+        let _ = write_accounts(&app, &accounts);
+        let _ = delete_token(&account.provider, &account_id, "access");
+        let _ = delete_token(&account.provider, &account_id, "refresh");
+        return Err(error);
+    }
+    Ok(account)
+}
+
+#[tauri::command]
+pub async fn api_list_outlook_events<R: Runtime>(
+    app: AppHandle<R>,
+    account_id: String,
+    starts_at: String,
+    ends_at: String,
+) -> Result<Vec<OutlookCalendarEvent>, String> {
+    let start = chrono::DateTime::parse_from_rfc3339(&starts_at)
+        .map_err(|_| "Início do período inválido".to_string())?;
+    let end = chrono::DateTime::parse_from_rfc3339(&ends_at)
+        .map_err(|_| "Fim do período inválido".to_string())?;
+    if end <= start {
+        return Err("O fim do período deve ser posterior ao início".into());
+    }
+    if end - start > chrono::Duration::days(92) {
+        return Err("Consulte no máximo 92 dias por vez".into());
+    }
+    let access_token = microsoft_access_token(&app, &account_id).await?;
+    let mut url = url::Url::parse("https://graph.microsoft.com/v1.0/me/calendarView")
+        .map_err(|error| error.to_string())?;
+    url.query_pairs_mut()
+        .append_pair("startDateTime", &start.to_rfc3339())
+        .append_pair("endDateTime", &end.to_rfc3339())
+        .append_pair("$top", "100")
+        .append_pair("$select", "id,subject,organizer,attendees,start,end,location,onlineMeetingUrl,onlineMeeting,webLink");
+    let client = reqwest::Client::new();
+    let mut events = Vec::new();
+    for _ in 0..10 {
+        if url.scheme() != "https" || url.host_str() != Some("graph.microsoft.com") {
+            return Err("A Microsoft retornou uma paginação fora do domínio esperado".into());
+        }
+        let response = client
+            .get(url.clone())
+            .bearer_auth(&access_token)
+            .header("Prefer", "outlook.timezone=\"UTC\"")
+            .send()
+            .await
+            .map_err(|error| format!("Falha ao consultar o calendário: {error}"))?;
+        let status = response.status();
+        let body = response.text().await.map_err(|error| error.to_string())?;
+        if !status.is_success() {
+            return Err(format!(
+                "O Outlook recusou a consulta do calendário: HTTP {status}"
+            ));
+        }
+        let page: GraphCalendarPage = serde_json::from_str(&body)
+            .map_err(|error| format!("Resposta de calendário inválida: {error}"))?;
+        for event in page.value {
+            events.push(normalize_calendar_event(event)?);
+        }
+        let Some(next) = page.next_link else { break };
+        url = url::Url::parse(&next).map_err(|_| "Link de paginação inválido".to_string())?;
+    }
+    events.sort_by(|left, right| left.starts_at.cmp(&right.starts_at));
+    Ok(events)
 }
 
 #[tauri::command]
@@ -395,6 +1051,16 @@ pub fn api_disconnect_integration_account<R: Runtime>(
     delete_token(&account.provider, &account.id, "refresh")?;
     accounts.retain(|candidate| candidate.id != account_id);
     write_accounts(&app, &accounts)?;
+    if account.provider == IntegrationProvider::Microsoft
+        && !accounts
+            .iter()
+            .any(|candidate| candidate.provider == IntegrationProvider::Microsoft)
+    {
+        let mut flags = read_flags(&app)?;
+        flags.outlook_calendar = false;
+        flags.outlook_mail_context = false;
+        write_flags(&app, &flags)?;
+    }
     Ok(accounts)
 }
 
@@ -470,9 +1136,52 @@ mod tests {
             email: "user@example.com".into(),
             display_name: "User".into(),
             granted_permissions: vec![ConnectorPermission::CalendarBasic],
+            token_expires_at: None,
             connected_at: "2026-08-05T12:00:00Z".into(),
             updated_at: "2026-08-05T12:00:00Z".into(),
         };
         assert!(account.validate().is_err());
+    }
+
+    #[test]
+    fn pkce_material_is_url_safe_and_unpredictable_per_run() {
+        let first = random_urlsafe(64);
+        let second = random_urlsafe(64);
+        assert_ne!(first, second);
+        assert!(first.len() >= 43);
+        assert!(first
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || "-_".contains(character)));
+        let challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(first.as_bytes()));
+        assert_eq!(challenge.len(), 43);
+    }
+
+    #[test]
+    fn meeting_links_are_classified_without_trusting_the_path() {
+        assert_eq!(
+            meeting_provider(Some("https://teams.microsoft.com/l/meetup-join/abc")),
+            Some("microsoft-teams".into())
+        );
+        assert_eq!(
+            meeting_provider(Some("https://acme.zoom.us/j/123")),
+            Some("zoom".into())
+        );
+        assert_eq!(
+            meeting_provider(Some("https://meet.google.com/abc-defg-hij")),
+            Some("google-meet".into())
+        );
+        assert_eq!(meeting_provider(Some("javascript:alert(1)")), None);
+    }
+
+    #[test]
+    fn outlook_dates_are_normalized_to_utc() {
+        assert_eq!(
+            normalize_graph_datetime("2026-08-05T12:00:00-03:00").unwrap(),
+            "2026-08-05T15:00:00+00:00"
+        );
+        assert_eq!(
+            normalize_graph_datetime("2026-08-05T15:00:00.0000000").unwrap(),
+            "2026-08-05T15:00:00+00:00"
+        );
     }
 }

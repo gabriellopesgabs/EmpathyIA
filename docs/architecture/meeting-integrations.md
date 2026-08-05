@@ -58,6 +58,18 @@ o conteúdo foi incluído. O recibo não duplica o corpo original do e-mail.
 - Pasta da Nota: Markdown revisado, memória de participantes e auditoria.
 - SQLite: índice operacional reconstruível, nunca fonte canônica.
 
+## Configuração Microsoft
+
+O binário aceita o Client ID público por `EMPATHY_MICROSOFT_CLIENT_ID` no build
+ou, somente em desenvolvimento, no ambiente do processo. O tenant pode ser
+limitado por `EMPATHY_MICROSOFT_TENANT`; quando ausente, usa `common`. Não existe
+Client Secret no aplicativo desktop.
+
+O login usa Authorization Code com PKCE S256 e navegador do sistema. O callback
+escuta uma porta efêmera exclusivamente em `127.0.0.1`, valida `state` e expira
+em cinco minutos. A primeira autorização solicita somente perfil e calendário
+básico. O contexto de e-mail terá uma segunda autorização explícita.
+
 ## Falhas e revogação
 
 Desconectar uma conta remove tokens do cofre e impede novas leituras. Notas já

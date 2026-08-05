@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { CalendarDays, ExternalLink, Mail, ShieldCheck, UsersRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { ConnectedAccount, IntegrationCapability, IntegrationFeatureFlags, IntegrationProvider } from '@/types/integrations';
+import type { ConnectedAccount, IntegrationCapability, IntegrationFeatureFlags, IntegrationProvider, MicrosoftAuthReadiness, OutlookCalendarEvent } from '@/types/integrations';
 
 const providerNames: Record<IntegrationProvider, string> = {
   microsoft: 'Microsoft Outlook',
@@ -34,18 +34,24 @@ export function IntegrationSettings() {
   const [capabilities, setCapabilities] = useState<IntegrationCapability[]>([]);
   const [flags, setFlags] = useState<IntegrationFeatureFlags | null>(null);
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
+  const [microsoftReadiness, setMicrosoftReadiness] = useState<MicrosoftAuthReadiness | null>(null);
+  const [connectingMicrosoft, setConnectingMicrosoft] = useState(false);
+  const [outlookEvents, setOutlookEvents] = useState<OutlookCalendarEvent[]>([]);
+  const [loadingEvents, setLoadingEvents] = useState(false);
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
     try {
-      const [nextCapabilities, nextFlags, nextAccounts] = await Promise.all([
+      const [nextCapabilities, nextFlags, nextAccounts, nextMicrosoftReadiness] = await Promise.all([
         invoke<IntegrationCapability[]>('api_get_integration_capabilities'),
         invoke<IntegrationFeatureFlags>('api_get_integration_feature_flags'),
         invoke<ConnectedAccount[]>('api_list_connected_accounts'),
+        invoke<MicrosoftAuthReadiness>('api_get_microsoft_auth_readiness'),
       ]);
       setCapabilities(nextCapabilities);
       setFlags(nextFlags);
       setAccounts(nextAccounts);
+      setMicrosoftReadiness(nextMicrosoftReadiness);
       setError('');
     } catch (reason) {
       setError(String(reason));
@@ -61,6 +67,22 @@ export function IntegrationSettings() {
     }
     return [...groups.entries()];
   }, [capabilities]);
+  const microsoftAccount = accounts.find(account => account.provider === 'microsoft');
+
+  useEffect(() => {
+    if (!microsoftAccount) {
+      setOutlookEvents([]);
+      return;
+    }
+    const startsAt = new Date();
+    const endsAt = new Date(startsAt.getTime() + 14 * 24 * 60 * 60 * 1000);
+    setLoadingEvents(true);
+    void invoke<OutlookCalendarEvent[]>('api_list_outlook_events', {
+      accountId: microsoftAccount.id,
+      startsAt: startsAt.toISOString(),
+      endsAt: endsAt.toISOString(),
+    }).then(setOutlookEvents).catch(reason => setError(String(reason))).finally(() => setLoadingEvents(false));
+  }, [microsoftAccount]);
 
   const disconnect = async (account: ConnectedAccount) => {
     if (!window.confirm(`Desconectar ${account.display_name}? Os tokens serão removidos do cofre seguro; suas Notas não serão apagadas.`)) return;
@@ -69,6 +91,19 @@ export function IntegrationSettings() {
       setAccounts(next);
     } catch (reason) {
       setError(String(reason));
+    }
+  };
+
+  const connectMicrosoft = async () => {
+    setConnectingMicrosoft(true);
+    setError('');
+    try {
+      await invoke<ConnectedAccount>('api_connect_microsoft_calendar');
+      await load();
+    } catch (reason) {
+      setError(String(reason));
+    } finally {
+      setConnectingMicrosoft(false);
     }
   };
 
@@ -83,9 +118,11 @@ export function IntegrationSettings() {
 
       {accounts.length > 0 && <section className="integration-accounts"><h3>Contas conectadas</h3>{accounts.map(account => <article key={account.id}><div><strong>{account.display_name}</strong><span>{account.email}</span><small>{account.granted_permissions.join(' · ')}</small></div><Button variant="ghost" onClick={() => void disconnect(account)}>Desconectar</Button></article>)}</section>}
 
+      {microsoftAccount && <section className="outlook-calendar-preview"><header><div><p className="eyebrow">Próximos 14 dias</p><h3>Calendário do Outlook</h3></div><span>{loadingEvents ? 'Atualizando…' : `${outlookEvents.length} evento(s)`}</span></header>{!loadingEvents && outlookEvents.length === 0 && <p className="outlook-calendar-empty">Nenhuma reunião encontrada neste período.</p>}{outlookEvents.slice(0, 8).map(event => <article key={event.id}><time dateTime={event.starts_at}>{new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(event.starts_at))}</time><div><strong>{event.title}</strong><span>{event.organizer?.display_name || 'Organizador não informado'} · {event.attendees.length} convidado(s)</span></div>{event.meeting_provider && <small>{event.meeting_provider === 'microsoft-teams' ? 'Teams' : event.meeting_provider === 'google-meet' ? 'Google Meet' : event.meeting_provider === 'zoom' ? 'Zoom' : 'Reunião online'}</small>}</article>)}</section>}
+
       <div className="integration-provider-list">
         {providers.map(([provider, items]) => <section className="integration-provider" key={provider}>
-          <header><div><h3>{providerNames[provider]}</h3><p>{provider === 'microsoft' ? 'A conta será conectada primeiro ao calendário; e-mails exigirão uma segunda autorização.' : 'A disponibilidade depende das políticas e aprovações da plataforma.'}</p></div></header>
+          <header><div><h3>{providerNames[provider]}</h3><p>{provider === 'microsoft' ? 'A conta será conectada primeiro ao calendário; e-mails exigirão uma segunda autorização.' : 'A disponibilidade depende das políticas e aprovações da plataforma.'}</p></div>{provider === 'microsoft' && accounts.every(account => account.provider !== 'microsoft') && <Button disabled={!microsoftReadiness?.configured || connectingMicrosoft} onClick={() => void connectMicrosoft()}>{connectingMicrosoft ? 'Aguardando navegador…' : microsoftReadiness?.configured ? 'Conectar calendário' : 'Client ID necessário'}</Button>}</header>
           <div>{items.map(capability => {
             const Icon = capabilityIcons[capability.id];
             const enabled = Boolean(flags?.[capability.id]);
