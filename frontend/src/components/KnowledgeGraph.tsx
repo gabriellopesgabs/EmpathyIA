@@ -15,12 +15,14 @@ const COLORS: Record<string, string> = {
   meeting: '#3b82f6', transcript: '#64748b', summary: '#8b7aa8', note: '#737373',
   project: '#b7791f', person: '#4f8a72', tag: '#9a7184', task: '#b65f5f',
   decision: '#7967a6', topic: '#4d8492', segment: '#8b9098',
+  individual: '#5b7c99', collective: '#6f8767', artificial: '#92705f', skill: '#77767b',
 };
 
 const KIND_LABELS: Record<string, string> = {
   meeting: 'Reunião', transcript: 'Transcrição', summary: 'Resumo', note: 'Nota',
   project: 'Projeto', person: 'Pessoa', tag: 'Tag', task: 'Tarefa', decision: 'Decisão',
   topic: 'Tema', segment: 'Trecho recente',
+  individual: 'Individual', collective: 'Coletiva', artificial: 'Artificial', skill: 'Skill',
 };
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));

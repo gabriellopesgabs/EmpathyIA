@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { BookOpen, FilePlus2, Home, Mic, Search, Settings } from 'lucide-react';
+import { BookOpen, Brain, FilePlus2, Home, Mic, Search, Settings } from 'lucide-react';
 import { noteService } from '@/services/noteService';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
 import {
@@ -104,6 +104,7 @@ export function GlobalCommandPalette() {
           <CommandItem onSelect={() => go('/')}><Home /> Início</CommandItem>
           <CommandItem onSelect={toggleRecording}><Mic /> {isRecording ? 'Encerrar gravação' : 'Nova gravação'}</CommandItem>
           <CommandItem onSelect={() => go('/knowledge')}><BookOpen /> Conhecimento</CommandItem>
+          <CommandItem onSelect={() => { setOpen(false); window.dispatchEvent(new CustomEvent('open-note-skills')); }}><Brain /> Aplicar Skill na nota</CommandItem>
           <CommandItem onSelect={() => go('/settings')}><Settings /> Configurações</CommandItem>
         </CommandGroup>
         {results.length > 0 && (

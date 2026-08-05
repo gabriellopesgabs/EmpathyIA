@@ -10,22 +10,22 @@ export function WelcomeStep() {
   const features = [
     {
       icon: Lock,
-      title: 'Your data never leaves your device',
+      title: 'Inteligência individual: registre e desenvolva seu pensamento',
     },
     {
       icon: Sparkles,
-      title: 'Intelligent summaries & insights',
+      title: 'Inteligência coletiva: conecte pessoas, decisões e memória local',
     },
     {
       icon: Cpu,
-      title: 'Works offline, no cloud required',
+      title: 'Inteligência artificial: aplique Skills sob sua decisão',
     },
   ];
 
   return (
     <OnboardingContainer
-      title="Welcome to Empathy.AI"
-      description="Record. Transcribe. Summarize. All on your device."
+      title="Amplie o pensamento humano"
+      description="Inteligência individual + coletiva + artificial."
       step={1}
       hideProgress={true}
     >
@@ -40,7 +40,7 @@ export function WelcomeStep() {
             <span>Privacy-First por Princípio</span>
           </div>
           <p className="text-xs text-emerald-900 leading-relaxed font-medium">
-            Esta aplicação não é apenas <span className="font-bold">AI First</span>, é <span className="font-bold">Privacy First</span>. Nada sai do seu computador e todos os seus dados pertencem a você.
+            Seus arquivos pertencem a você. Modelos locais mantêm o conteúdo no dispositivo; antes de usar um provedor externo, o Empathy mostra exatamente qual contexto será enviado.
           </p>
         </div>
 
@@ -67,9 +67,9 @@ export function WelcomeStep() {
             onClick={goNext}
             className="w-full h-11 bg-gray-900 hover:bg-gray-800 text-white"
           >
-            Get Started
+            Começar
           </Button>
-          <p className="text-xs text-center text-gray-500">Takes less than 3 minutes</p>
+          <p className="text-xs text-center text-gray-500">Você mantém a decisão final em cada Skill</p>
         </div>
       </div>
     </OnboardingContainer>

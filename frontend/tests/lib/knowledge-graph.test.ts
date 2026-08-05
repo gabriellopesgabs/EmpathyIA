@@ -50,4 +50,28 @@ describe('live knowledge graph', () => {
     expect(merged.nodes.filter(node => node.kind === 'meeting')).toHaveLength(1);
     expect(merged.edges.some(edge => edge.source === 'meeting:file' && edge.kind === 'topic')).toBe(true);
   });
+
+  it('indexes skill results and the three augmented-intelligence relationships', () => {
+    const graph = buildMarkdownKnowledgeGraph(`Texto humano
+
+<!-- empathy-skill-result
+id: result-1
+skill_id: connect-memory
+skill_name: Conectar com a memória
+layer: collective
+created_at: 2026-08-05T00:00:00Z
+source_scope: note
+provider: builtin-ai
+model: qwen
+context_documents: ["note-2"]
+-->
+## Conexões
+
+*Skill (Conectar com a memória)*
+
+Uma conexão.
+<!-- /empathy-skill-result -->`, 'Nota');
+    expect(graph.nodes.some(node => node.kind === 'collective')).toBe(true);
+    expect(graph.edges.map(edge => edge.kind)).toEqual(expect.arrayContaining(['contains', 'generated_by', 'used_context']));
+  });
 });

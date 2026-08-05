@@ -47,6 +47,7 @@ pub mod onboarding;
 pub mod openai;
 pub mod openrouter;
 pub mod parakeet_engine;
+pub mod skills;
 pub mod state;
 pub mod summary;
 pub mod tray;
@@ -738,6 +739,15 @@ pub fn run() {
             knowledge::api_set_extension_enabled,
             knowledge::api_run_extension,
             knowledge::api_start_knowledge_watcher,
+            skills::api_list_skills,
+            skills::api_get_skill,
+            skills::api_save_custom_skill,
+            skills::api_delete_custom_skill,
+            skills::api_import_skill,
+            skills::api_export_skill,
+            skills::api_migrate_custom_templates,
+            skills::api_run_skill,
+            skills::api_cancel_skill,
             // Custom OpenAI commands
             api::api_save_custom_openai_config,
             api::api_get_custom_openai_config,
