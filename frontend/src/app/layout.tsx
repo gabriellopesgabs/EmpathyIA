@@ -252,7 +252,21 @@ export default function RootLayout({
           </RecordingStateProvider>
         </AnalyticsProvider>
 
-        <Toaster position="bottom-center" richColors closeButton />
+        <Toaster
+          position="bottom-right"
+          theme="system"
+          closeButton
+          toastOptions={{
+            classNames: {
+              toast: 'empathy-toast',
+              title: 'empathy-toast-title',
+              description: 'empathy-toast-description',
+              actionButton: 'empathy-toast-action',
+              cancelButton: 'empathy-toast-cancel',
+              closeButton: 'empathy-toast-close',
+            },
+          }}
+        />
       </body>
     </html>
   )

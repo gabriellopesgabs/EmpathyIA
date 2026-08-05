@@ -42,19 +42,19 @@ export function MeetingKnowledgeGraph({
   }, [load]);
 
   return (
-    <section className="relative min-h-full rounded-xl bg-slate-50 p-3 dark:bg-gray-950 sm:p-5">
-      <div className="absolute right-6 top-6 z-10">
-        <Button size="sm" variant="outline" onClick={() => void load()} disabled={loading}>
-          {loading ? <Loader2 className="animate-spin" /> : <RefreshCw />}
-          <span className="hidden sm:inline">Atualizar</span>
-        </Button>
-      </div>
+    <section className="min-h-full bg-transparent p-3 sm:p-5">
       <KnowledgeGraphView
         graph={visibleGraph}
         title="Grafo da nota"
         subtitle={error
           ? 'Exibindo os temas derivados da transcrição salva; o índice completo será combinado quando estiver disponível.'
           : 'Transcrição, resumo, pessoas, projetos, tags, tarefas, decisões e temas desta nota.'}
+        headerAction={(
+          <Button size="sm" variant="ghost" onClick={() => void load()} disabled={loading} aria-label="Atualizar grafo">
+            {loading ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+            <span className="hidden sm:inline">Atualizar</span>
+          </Button>
+        )}
       />
       {error && <p className="mt-2 px-1 text-xs text-amber-700">O índice completo não pôde ser carregado: {error}</p>}
     </section>
