@@ -66,7 +66,7 @@ export function TranscriptPanel({
   return (
     <div className="flex h-full w-full min-w-0 flex-col bg-card">
       {/* Title area */}
-      <div className="p-4 border-b border-gray-200">
+      <div className="border-b border-border p-4">
         <TranscriptButtonGroup
           transcriptCount={usePagination ? (totalCount ?? convertedSegments.length) : (transcripts?.length || 0)}
           onCopyTranscript={onCopyTranscript}
@@ -98,7 +98,7 @@ export function TranscriptPanel({
 
       {/* Custom prompt input at bottom of transcript section */}
       {!isRecording && convertedSegments.length > 0 && (
-        <div className="p-3 border-t border-gray-200 bg-gray-50 flex flex-col gap-2">
+        <div className="flex flex-col gap-2 border-t border-border bg-muted/40 p-3">
           <div className="flex flex-wrap gap-1.5 items-center">
             <span className="mr-1 text-xs font-semibold text-muted-foreground">Perspectivas:</span>
             {[
@@ -122,8 +122,8 @@ export function TranscriptPanel({
                   }}
                   className={`px-2 py-1 text-xs font-medium rounded-full border transition-all duration-200 ${
                     isSelected
-                      ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
-                      : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-100 hover:border-gray-300'
+                      ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                      : 'border-border bg-card text-foreground hover:border-foreground/20 hover:bg-muted'
                   }`}
                 >
                   {skill.name}
@@ -133,7 +133,7 @@ export function TranscriptPanel({
           </div>
           <textarea
             placeholder="Adicione contexto para o resumo: pessoas, objetivo ou informações importantes…"
-            className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm min-h-[80px] resize-y"
+            className="min-h-[80px] w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
             value={customPrompt}
             onChange={(e) => onPromptChange(e.target.value)}
           />
