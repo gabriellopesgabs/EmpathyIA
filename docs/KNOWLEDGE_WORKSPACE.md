@@ -3,6 +3,10 @@
 O EmpathyIA trata os arquivos Markdown como fonte de verdade. O SQLite mantém somente um índice
 reconstruível para busca, relações, tarefas, decisões e painéis.
 
+Esta memória conectada representa a inteligência coletiva do produto. Ela se combina à inteligência
+individual registrada nas notas e à inteligência artificial aplicada por Skills, sempre sob revisão
+e decisão humana.
+
 ## Schema de reunião
 
 Novas reuniões usam `empathy_schema: 2` em `meeting.md`:
@@ -89,6 +93,10 @@ O grafo usa Canvas 2D, limita automaticamente uma visão muito grande e mantém 
 por teclado como alternativa acessível. Arrastar move a visualização; os botões controlam zoom e
 restauração sem capturar a rolagem do sistema. As posições são determinísticas para reduzir mudanças
 visuais quando novos trechos ou documentos aparecem.
+
+Resultados de Skills acrescentam relações `contains`, `generated_by` e `used_context`. Os filtros
+**Individual**, **Coletiva** e **Artificial** permitem enxergar como as três camadas participaram da
+evolução da nota.
 
 ## Importação e Canvas
 

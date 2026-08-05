@@ -50,7 +50,7 @@ export function About() {
                     </button>
                 </div>
                 <p className="text-medium text-gray-600 mt-1">
-                    Transcrição local e resumos sob o seu controle.
+                    Inteligência individual + coletiva + artificial para ampliar o pensamento humano.
                 </p>
                 
                 {/* Privacy-First Banner */}
@@ -70,26 +70,21 @@ export function About() {
                         <p className="text-xs text-gray-600 leading-relaxed">Gravação e transcrição podem permanecer no seu computador, sob o seu controle.</p>
                     </div>
                     <div className="bg-gray-50 rounded p-3 hover:bg-gray-100 transition-colors">
-                        <h3 className="font-bold text-sm text-gray-900 mb-1">Escolha o modelo</h3>
-                        <p className="text-xs text-gray-600 leading-relaxed">Use um modelo local ou configure conscientemente um provedor externo, sem dependência obrigatória.</p>
+                        <h3 className="font-bold text-sm text-gray-900 mb-1">Contribuição humana primeiro</h3>
+                        <p className="text-xs text-gray-600 leading-relaxed">Skills sempre criam uma proposta revisável e nunca substituem silenciosamente o que você escreveu.</p>
                     </div>
                     <div className="bg-gray-50 rounded p-3 hover:bg-gray-100 transition-colors">
-                        <h3 className="font-bold text-sm text-gray-900 mb-1">Custo sob controle</h3>
-                        <p className="text-xs text-gray-600 leading-relaxed">Execute localmente ou pague somente pelas chamadas externas que decidir realizar.</p>
+                        <h3 className="font-bold text-sm text-gray-900 mb-1">Memória coletiva local</h3>
+                        <p className="text-xs text-gray-600 leading-relaxed">Conecte reuniões, pessoas, decisões e notas sem depender de uma nuvem.</p>
                     </div>
                     <div className="bg-gray-50 rounded p-3 hover:bg-gray-100 transition-colors">
-                        <h3 className="font-bold text-sm text-gray-900 mb-1">Funciona com suas reuniões</h3>
-                        <p className="text-xs text-gray-600 leading-relaxed">Google Meet, Zoom e Teams, tanto em reuniões online quanto presenciais.</p>
+                        <h3 className="font-bold text-sm text-gray-900 mb-1">IA sob sua decisão</h3>
+                        <p className="text-xs text-gray-600 leading-relaxed">Veja provedor e contexto, revise o Markdown e só então incorpore uma nova versão.</p>
                     </div>
                 </div>
             </div>
 
-            {/* Coming Soon - Compact */}
-            <div className="bg-blue-50 rounded p-3">
-                <p className="text-s text-blue-800">
-                    <span className="font-bold">Em breve:</span> agentes locais para acompanhar tarefas, decisões e próximos passos.
-                </p>
-            </div>
+            <div className="bg-blue-50 rounded p-3"><p className="text-s text-blue-800"><span className="font-bold">Humano aumentado:</span> a IA amplia reflexão e memória compartilhada; a autoria e a decisão continuam humanas.</p></div>
 
             {/* CTA Section - Compact */}
             <div className="text-center space-y-2">

@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
 use std::fs;
 use std::io::Write;
@@ -21,6 +22,8 @@ pub struct NoteDocument {
     pub written: bool,
     pub archived: bool,
     pub folder_path: String,
+    /// Hash of the complete meeting.md used for optimistic concurrency.
+    pub content_hash: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -172,6 +175,7 @@ pub fn read_note_document(folder: &Path) -> Result<NoteDocument> {
             .to_string()
     };
     let origins = note_origins(&metadata);
+    let content_hash = format!("{:x}", Sha256::digest(content.as_bytes()));
     Ok(NoteDocument {
         id: string_value("id"),
         title: string_value("title"),
@@ -190,7 +194,57 @@ pub fn read_note_document(folder: &Path) -> Result<NoteDocument> {
             .and_then(serde_yaml::Value::as_bool)
             .unwrap_or(false),
         folder_path: folder.to_string_lossy().to_string(),
+        content_hash,
     })
+}
+
+/// On the first explicit save/use of a recorded note, surface the legacy
+/// summary as a signed skill result. summary.md remains untouched.
+pub fn merge_legacy_summary(folder: &Path, body: &str) -> Result<String> {
+    const MARKER: &str = "skill_id: legacy-meeting-summary";
+    if body.contains(MARKER) {
+        return Ok(body.to_string());
+    }
+    let path = folder.join(SUMMARY_FILE);
+    if !path.exists() {
+        return Ok(body.to_string());
+    }
+    let legacy =
+        fs::read_to_string(&path).with_context(|| format!("Failed to read {}", path.display()))?;
+    if legacy.trim().is_empty() {
+        return Ok(body.to_string());
+    }
+    let block = format!(
+        "<!-- empathy-skill-result\nid: {}\nskill_id: legacy-meeting-summary\nskill_name: Resumo da reunião\nlayer: artificial\ncreated_at: {}\nsource_scope: transcript\nprovider: legacy\nmodel: legacy\n-->\n## Resumo da reunião\n\n*Skill (Resumo da reunião)*\n\n{}\n<!-- /empathy-skill-result -->",
+        uuid::Uuid::new_v4(), chrono::Utc::now().to_rfc3339(), legacy.trim()
+    );
+    Ok(if body.trim().is_empty() {
+        block
+    } else {
+        format!("{}\n\n{}", body.trim_end(), block)
+    })
+}
+
+#[cfg(test)]
+mod skill_migration_tests {
+    use super::*;
+    #[test]
+    fn legacy_summary_migration_is_idempotent_and_preserves_source() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(
+            directory.path().join(SUMMARY_FILE),
+            "## Decisões\n\nManter Markdown.",
+        )
+        .unwrap();
+        let first = merge_legacy_summary(directory.path(), "Texto humano").unwrap();
+        let second = merge_legacy_summary(directory.path(), &first).unwrap();
+        assert_eq!(first, second);
+        assert_eq!(first.matches("skill_id: legacy-meeting-summary").count(), 1);
+        assert_eq!(
+            fs::read_to_string(directory.path().join(SUMMARY_FILE)).unwrap(),
+            "## Decisões\n\nManter Markdown."
+        );
+    }
 }
 
 pub fn save_note_document(

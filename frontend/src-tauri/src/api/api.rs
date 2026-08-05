@@ -506,6 +506,7 @@ pub async fn api_save_note<R: Runtime>(
     meeting_id: String,
     title: String,
     content: String,
+    expected_hash: Option<String>,
 ) -> Result<crate::meeting_files::NoteDocument, String> {
     let title = title.trim();
     if title.is_empty() {
@@ -520,9 +521,19 @@ pub async fn api_save_note<R: Runtime>(
         .as_deref()
         .filter(|path| !path.trim().is_empty())
         .ok_or_else(|| "A nota não possui uma pasta Markdown".to_string())?;
+    let folder_path = std::path::Path::new(folder);
+    if let Some(expected) = expected_hash.as_deref() {
+        let current = crate::meeting_files::read_note_document(folder_path)
+            .map_err(|error| format!("Não foi possível verificar a versão da nota: {error}"))?;
+        if current.content_hash != expected {
+            return Err("NOTE_CONFLICT: O arquivo Markdown mudou fora do Empathy. Revise as duas versões antes de salvar.".into());
+        }
+    }
+    let content = crate::meeting_files::merge_legacy_summary(folder_path, &content)
+        .map_err(|error| format!("Não foi possível migrar o resumo legado: {error}"))?;
     let updated = chrono::Utc::now();
     let document = crate::meeting_files::save_note_document(
-        std::path::Path::new(folder),
+        folder_path,
         title,
         &content,
         &updated.to_rfc3339(),

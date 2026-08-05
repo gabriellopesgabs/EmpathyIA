@@ -807,6 +807,96 @@ fn build_knowledge_graph(
     }
 }
 
+fn augment_graph_with_skill_results(
+    graph: &mut KnowledgeGraph,
+    contents: &[(String, Option<String>, String)],
+) {
+    let expression =
+        Regex::new(r"(?s)<!-- empathy-skill-result\n(.*?)-->\n(.*?)<!-- /empathy-skill-result -->")
+            .unwrap();
+    let title_expression = Regex::new(r"(?m)^##\s+(.+)$").unwrap();
+    for (path, meeting_id, content) in contents {
+        let Some(anchor) = graph
+            .nodes
+            .iter()
+            .find(|node| node.path.as_deref() == Some(path) && node.kind == "meeting")
+            .map(|node| node.id.clone())
+        else {
+            continue;
+        };
+        for capture in expression.captures_iter(content) {
+            let metadata = capture[1]
+                .lines()
+                .filter_map(|line| line.split_once(':'))
+                .map(|(key, value)| (key.trim(), value.trim()))
+                .collect::<BTreeMap<_, _>>();
+            let result_key = metadata.get("id").copied().unwrap_or("unknown");
+            let result_id = format!("skill-result:{result_key}");
+            let skill_key = metadata.get("skill_id").copied().unwrap_or("skill");
+            let skill_id = format!("skill:{skill_key}");
+            let skill_name = metadata.get("skill_name").copied().unwrap_or(skill_key);
+            let layer = metadata.get("layer").copied().unwrap_or("artificial");
+            let title = title_expression
+                .captures(&capture[2])
+                .map(|value| value[1].trim().to_string())
+                .unwrap_or_else(|| skill_name.to_string());
+            graph.nodes.push(KnowledgeGraphNode {
+                id: result_id.clone(),
+                label: title,
+                kind: layer.into(),
+                meeting_id: meeting_id.clone(),
+                path: Some(path.clone()),
+                count: 1,
+            });
+            if !graph.nodes.iter().any(|node| node.id == skill_id) {
+                graph.nodes.push(KnowledgeGraphNode {
+                    id: skill_id.clone(),
+                    label: skill_name.into(),
+                    kind: "skill".into(),
+                    meeting_id: None,
+                    path: None,
+                    count: 1,
+                });
+            }
+            graph.edges.push(KnowledgeGraphEdge {
+                id: stable_hash(&[&anchor, &result_id, "contains"]),
+                source: anchor.clone(),
+                target: result_id.clone(),
+                kind: "contains".into(),
+                weight: 1,
+            });
+            graph.edges.push(KnowledgeGraphEdge {
+                id: stable_hash(&[&result_id, &skill_id, "generated_by"]),
+                source: result_id.clone(),
+                target: skill_id,
+                kind: "generated_by".into(),
+                weight: 1,
+            });
+            if let Some(raw) = metadata.get("context_documents") {
+                for context in serde_json::from_str::<Vec<String>>(raw).unwrap_or_default() {
+                    if let Some(target) = graph
+                        .nodes
+                        .iter()
+                        .find(|node| {
+                            node.meeting_id.as_deref() == Some(&context)
+                                || node.path.as_deref() == Some(&context)
+                        })
+                        .map(|node| node.id.clone())
+                    {
+                        graph.edges.push(KnowledgeGraphEdge {
+                            id: stable_hash(&[&result_id, &target, "used_context"]),
+                            source: result_id.clone(),
+                            target,
+                            kind: "used_context".into(),
+                            weight: 1,
+                        });
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[tauri::command]
 pub async fn api_get_knowledge_graph(
     state: State<'_, AppState>,
@@ -839,13 +929,21 @@ pub async fn api_get_knowledge_graph(
     .fetch_all(state.db_manager.pool())
     .await
     .map_err(|error| error.to_string())?;
-    Ok(build_knowledge_graph(
+    let mut graph = build_knowledge_graph(
         &documents,
         &link_rows,
         &tasks,
         &decisions,
         meeting_id.as_deref(),
-    ))
+    );
+    let contents = sqlx::query_as::<_, (String, Option<String>, String)>(
+        "SELECT path, meeting_id, content FROM knowledge_documents WHERE kind = 'meeting'",
+    )
+    .fetch_all(state.db_manager.pool())
+    .await
+    .map_err(|error| error.to_string())?;
+    augment_graph_with_skill_results(&mut graph, &contents);
+    Ok(graph)
 }
 
 #[tauri::command]
@@ -1868,6 +1966,29 @@ mod tests {
         assert!(graph.nodes.iter().any(|node| node.kind == "person"));
         assert!(graph.nodes.iter().any(|node| node.kind == "task"));
         assert!(graph.edges.iter().any(|edge| edge.kind == "contains"));
+    }
+
+    #[test]
+    fn skill_results_extend_rebuildable_graph() {
+        let path = "/workspace/note/meeting.md".to_string();
+        let document = KnowledgeDocument {
+            path: path.clone(),
+            meeting_id: Some("note-1".into()),
+            kind: "meeting".into(),
+            title: "Nota".into(),
+            project: None,
+            participants_json: "[]".into(),
+            tags_json: "[]".into(),
+            status: None,
+            modified_ms: 1,
+        };
+        let mut graph = build_knowledge_graph(&[document], &[], &[], &[], None);
+        let markdown = "<!-- empathy-skill-result\nid: result-1\nskill_id: connect-memory\nskill_name: Conectar com a memória\nlayer: collective\ncontext_documents: [\"note-1\"]\n-->\n## Conexões\n\nTexto\n<!-- /empathy-skill-result -->".to_string();
+        augment_graph_with_skill_results(&mut graph, &[(path, Some("note-1".into()), markdown)]);
+        assert!(graph.nodes.iter().any(|node| node.kind == "collective"));
+        assert!(graph.nodes.iter().any(|node| node.kind == "skill"));
+        assert!(graph.edges.iter().any(|edge| edge.kind == "generated_by"));
+        assert!(graph.edges.iter().any(|edge| edge.kind == "used_context"));
     }
 
     #[test]

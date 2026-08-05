@@ -2,6 +2,10 @@
 
 Assistente desktop de reuniões com transcrição local, organização por pastas e documentos Markdown portáveis.
 
+**Inteligência individual + coletiva + artificial para ampliar o pensamento humano.** O Empathy
+preserva a contribuição humana como fonte principal, conecta a memória local e aplica Skills que
+sempre precisam ser revisadas antes de entrar na nota.
+
 > O EmpathyIA está em desenvolvimento. Use apenas os artefatos publicados em
 > [gabriellopesgabs/EmpathyIA Releases](https://github.com/gabriellopesgabs/EmpathyIA/releases).
 > O aplicativo consulta apenas o canal próprio do EmpathyIA e só instala pacotes cuja assinatura
@@ -10,7 +14,8 @@ Assistente desktop de reuniões com transcrição local, organização por pasta
 ## Privacidade em linguagem direta
 
 - Gravações e transcrições são processadas localmente e salvas nas pastas escolhidas pelo usuário.
-- Cada reunião possui `meeting.md`, `transcript.md` e `summary.md`, além do áudio e metadados técnicos.
+- Cada reunião possui `meeting.md` e `transcript.md`, além do áudio e metadados técnicos. O
+  `summary.md` de versões anteriores é preservado e incorporado à nota somente na primeira edição.
 - O conteúdo portátil fica nos arquivos Markdown. O SQLite continua sendo usado como catálogo
   operacional para busca, paginação e processamento e ainda é necessário para a interface atual.
 - Chaves de API ficam no cofre seguro do sistema operacional, não no SQLite.
@@ -51,6 +56,17 @@ grafo ao vivo ou as duas visualizações lado a lado.
 - `Cmd/Ctrl + Shift + K`: abrir Conhecimento
 - `Cmd/Ctrl + ,`: abrir Configurações
 - `Cmd/Ctrl + S`: salvar a nota atual
+
+## Skills e autoria humana
+
+Em qualquer nota, selecione um trecho ou use a nota inteira e abra **Skills** com `Cmd/Ctrl + K`
+ou digitando `/skill`. O painel lateral mostra a camada da Skill, o provedor e todo contexto que
+será processado. Transcrição e até cinco notas relacionadas são sempre opcionais e explícitas.
+
+O resultado é editável antes da inserção. Ao confirmar, o Empathy acrescenta um novo bloco Markdown
+assinado com nome da Skill, data, modelo e documentos usados; resultados anteriores nunca são
+substituídos silenciosamente. Skills nativas podem ser duplicadas e as personalizadas ficam em
+`Application Support/Empathy/skills` como JSON portável, sem uma nova tabela SQL.
 
 ## Memória conectada
 

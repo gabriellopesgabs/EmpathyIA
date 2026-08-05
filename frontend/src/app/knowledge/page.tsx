@@ -285,7 +285,7 @@ export default function KnowledgePage() {
           <div>
             <div className="eyebrow flex items-center gap-2"><Network className="h-4 w-4" /> Memória conectada</div>
             <h1>Conhecimento</h1>
-            <p className="mt-2 max-w-2xl text-gray-500">Reuniões, decisões, tarefas, pessoas e projetos derivados dos seus arquivos Markdown.</p>
+            <p className="mt-2 max-w-2xl text-gray-500">A inteligência coletiva do Empathy: reuniões, decisões, pessoas e projetos conectados aos resultados revisados de Skills.</p>
             {lastIndex && <p className="mt-1 text-xs text-gray-400">Workspace: {lastIndex.root}</p>}
           </div>
           <Button variant="ghost" onClick={() => reindex()} disabled={loading}>

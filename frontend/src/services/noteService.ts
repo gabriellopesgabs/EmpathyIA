@@ -10,6 +10,7 @@ export interface NoteDocument {
   written: boolean;
   archived: boolean;
   folder_path: string;
+  content_hash: string;
 }
 
 interface LegacyNote {
@@ -37,8 +38,8 @@ export const noteService = {
     return invoke<NoteDocument>('api_get_note', { meetingId: id });
   },
 
-  async save(id: string, title: string, content: string) {
-    return invoke<NoteDocument>('api_save_note', { meetingId: id, title, content });
+  async save(id: string, title: string, content: string, expectedHash?: string) {
+    return invoke<NoteDocument>('api_save_note', { meetingId: id, title, content, expectedHash: expectedHash ?? null });
   },
 
   async setArchived(id: string, archived: boolean) {

@@ -1,4 +1,5 @@
 import type { Transcript } from '@/types';
+import { parseSkillBlocks } from '@/lib/skillBlocks';
 
 export type KnowledgeGraphNodeKind =
   | 'meeting' | 'transcript' | 'summary' | 'note'
@@ -114,7 +115,22 @@ export function buildMarkdownKnowledgeGraph(
       sequence_id: index,
     }))
     .filter(segment => segment.text.length > 0);
-  return buildLiveKnowledgeGraph(segments, title);
+  const graph = buildLiveKnowledgeGraph(segments, title);
+  const root = graph.nodes.find(node => node.kind === 'meeting')?.id ?? 'live-meeting';
+  for (const result of parseSkillBlocks(markdown)) {
+    const resultId = `skill-result:${result.id}`;
+    const skillId = `skill:${result.skillId}`;
+    graph.nodes.push({ id: resultId, label: result.title, kind: result.layer || 'artificial', count: 1 });
+    graph.nodes.push({ id: skillId, label: result.skillName || result.skillId, kind: 'skill', count: 1 });
+    graph.edges.push({ id: `contains:${root}:${resultId}`, source: root, target: resultId, kind: 'contains', weight: 1 });
+    graph.edges.push({ id: `generated_by:${resultId}:${skillId}`, source: resultId, target: skillId, kind: 'generated_by', weight: 1 });
+    result.contextDocuments.forEach(document => {
+      const documentId = document === root ? root : `context:${document}`;
+      if (!graph.nodes.some(node => node.id === documentId)) graph.nodes.push({ id: documentId, label: document, kind: 'note', count: 1 });
+      graph.edges.push({ id: `used_context:${resultId}:${documentId}`, source: resultId, target: documentId, kind: 'used_context', weight: 1 });
+    });
+  }
+  return graph;
 }
 
 export function mergeMeetingKnowledgeGraphs(
