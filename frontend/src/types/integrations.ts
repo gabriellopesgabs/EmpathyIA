@@ -175,6 +175,20 @@ export interface AgentServiceReadiness {
   visible_name: string;
 }
 
+export interface ProviderAdapterReadiness {
+  provider: Exclude<IntegrationProvider, 'microsoft'>;
+  mode: 'hosted-visible-agent' | 'realtime-media-stream' | 'meeting-artifacts' | 'realtime-media-preview';
+  disclosure_model: 'visible-participant' | 'platform-recording-indicator' | 'artifact-only' | 'authenticated-user-media-client';
+  stage: 'ready' | 'configuration-required' | 'admin-approval-required' | 'external-review-required' | 'developer-preview';
+  ready: boolean;
+  reads_participants: boolean;
+  reads_artifacts: boolean;
+  streams_realtime_media: boolean;
+  missing: string[];
+  privacy_note: string;
+  documentation_url: string;
+}
+
 export interface ContextSourceReceipt {
   schema: 1;
   source_id: string;

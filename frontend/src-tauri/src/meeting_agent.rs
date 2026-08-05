@@ -85,6 +85,52 @@ pub struct AgentServiceReadiness {
     pub visible_name: &'static str,
 }
 
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum ProviderAdapterMode {
+    HostedVisibleAgent,
+    RealtimeMediaStream,
+    MeetingArtifacts,
+    RealtimeMediaPreview,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum ProviderDisclosureModel {
+    VisibleParticipant,
+    PlatformRecordingIndicator,
+    ArtifactOnly,
+    AuthenticatedUserMediaClient,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum ProviderAdapterStage {
+    Ready,
+    ConfigurationRequired,
+    AdminApprovalRequired,
+    ExternalReviewRequired,
+    DeveloperPreview,
+}
+
+/// A deliberately capability-oriented adapter contract. Providers do not all
+/// expose a bot that can be represented as a visible participant: the UI must
+/// describe the provider's real disclosure mechanism instead of implying one.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct ProviderAdapterReadiness {
+    pub provider: MeetingAgentProvider,
+    pub mode: ProviderAdapterMode,
+    pub disclosure_model: ProviderDisclosureModel,
+    pub stage: ProviderAdapterStage,
+    pub ready: bool,
+    pub reads_participants: bool,
+    pub reads_artifacts: bool,
+    pub streams_realtime_media: bool,
+    pub missing: Vec<String>,
+    pub privacy_note: &'static str,
+    pub documentation_url: &'static str,
+}
+
 #[derive(Debug, Deserialize)]
 struct ServiceReadinessResponse {
     ready: bool,
@@ -527,6 +573,93 @@ pub async fn api_get_agent_service_readiness<R: Runtime>(
 }
 
 #[tauri::command]
+pub async fn api_get_meeting_provider_readiness<R: Runtime>(
+    app: AppHandle<R>,
+) -> Result<Vec<ProviderAdapterReadiness>, String> {
+    let teams = api_get_agent_service_readiness(app).await?;
+    let teams_stage = if teams.ready {
+        ProviderAdapterStage::Ready
+    } else if teams.reachable {
+        ProviderAdapterStage::AdminApprovalRequired
+    } else {
+        ProviderAdapterStage::ConfigurationRequired
+    };
+    let mut teams_missing = teams.missing;
+    if let Some(error) = teams.service_error {
+        teams_missing.push(error);
+    }
+    Ok(vec![
+        ProviderAdapterReadiness {
+            provider: MeetingAgentProvider::MicrosoftTeams,
+            mode: ProviderAdapterMode::HostedVisibleAgent,
+            disclosure_model: ProviderDisclosureModel::VisibleParticipant,
+            stage: teams_stage,
+            ready: teams.ready,
+            reads_participants: true,
+            reads_artifacts: false,
+            streams_realtime_media: true,
+            missing: teams_missing,
+            privacy_note: "O agente entra com nome visível e só transcreve depois da confirmação de gravação e do consentimento registrado.",
+            documentation_url: "https://learn.microsoft.com/en-us/microsoftteams/platform/bots/calls-and-meetings/registering-calling-bot",
+        },
+        ProviderAdapterReadiness {
+            provider: MeetingAgentProvider::Zoom,
+            mode: ProviderAdapterMode::RealtimeMediaStream,
+            disclosure_model: ProviderDisclosureModel::PlatformRecordingIndicator,
+            stage: ProviderAdapterStage::ExternalReviewRequired,
+            ready: false,
+            reads_participants: true,
+            reads_artifacts: false,
+            streams_realtime_media: true,
+            missing: vec![
+                "zoom-developer-pack-credits".into(),
+                "zoom-general-app".into(),
+                "rtms-scopes-and-webhooks".into(),
+                "provider-review-and-consent-flow".into(),
+            ],
+            privacy_note: "O RTMS usa o indicador nativo da plataforma; não deve ser apresentado como um participante separado chamado Empathy.",
+            documentation_url: "https://developers.zoom.us/docs/rtms/meetings/getting-started/",
+        },
+        ProviderAdapterReadiness {
+            provider: MeetingAgentProvider::GoogleMeet,
+            mode: ProviderAdapterMode::MeetingArtifacts,
+            disclosure_model: ProviderDisclosureModel::ArtifactOnly,
+            stage: ProviderAdapterStage::ConfigurationRequired,
+            ready: false,
+            reads_participants: true,
+            reads_artifacts: true,
+            streams_realtime_media: false,
+            missing: vec![
+                "google-cloud-project".into(),
+                "google-oauth-consent".into(),
+                "meet-rest-api".into(),
+                "artifact-selection-flow".into(),
+            ],
+            privacy_note: "O adaptador REST lê somente participantes e artefatos escolhidos; ele não entra na chamada nem captura mídia ao vivo.",
+            documentation_url: "https://developers.google.com/workspace/meet/api/guides/overview",
+        },
+        ProviderAdapterReadiness {
+            provider: MeetingAgentProvider::GoogleMeet,
+            mode: ProviderAdapterMode::RealtimeMediaPreview,
+            disclosure_model: ProviderDisclosureModel::AuthenticatedUserMediaClient,
+            stage: ProviderAdapterStage::DeveloperPreview,
+            ready: false,
+            reads_participants: true,
+            reads_artifacts: false,
+            streams_realtime_media: true,
+            missing: vec![
+                "workspace-developer-preview-enrollment".into(),
+                "all-participants-preview-enrollment".into(),
+                "restricted-oauth-scope-verification".into(),
+                "webrtc-reference-client".into(),
+            ],
+            privacy_note: "A mídia é acessada em nome de um usuário autenticado e permanece indisponível fora do Developer Preview.",
+            documentation_url: "https://developers.google.com/workspace/meet/media-api/guides/get-started",
+        },
+    ])
+}
+
+#[tauri::command]
 pub async fn api_pair_agent_service<R: Runtime>(
     app: AppHandle<R>,
     state: State<'_, AppState>,
@@ -926,6 +1059,32 @@ mod tests {
             validate_service_identifier("550e8400-e29b-41d4-a716-446655440000", "sessão").is_ok()
         );
         assert!(validate_service_identifier("../session", "sessão").is_err());
+    }
+
+    #[test]
+    fn future_provider_adapters_are_fail_closed_and_disclose_real_presence() {
+        let zoom = ProviderAdapterReadiness {
+            provider: MeetingAgentProvider::Zoom,
+            mode: ProviderAdapterMode::RealtimeMediaStream,
+            disclosure_model: ProviderDisclosureModel::PlatformRecordingIndicator,
+            stage: ProviderAdapterStage::ExternalReviewRequired,
+            ready: false,
+            reads_participants: true,
+            reads_artifacts: false,
+            streams_realtime_media: true,
+            missing: vec!["rtms-scopes-and-webhooks".into()],
+            privacy_note: "indicator",
+            documentation_url: "https://developers.zoom.us/docs/rtms/meetings/getting-started/",
+        };
+        assert!(!zoom.ready);
+        assert_eq!(
+            zoom.disclosure_model,
+            ProviderDisclosureModel::PlatformRecordingIndicator
+        );
+        assert_ne!(
+            zoom.disclosure_model,
+            ProviderDisclosureModel::VisibleParticipant
+        );
     }
 
     #[tokio::test]

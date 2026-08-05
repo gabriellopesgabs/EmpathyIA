@@ -46,6 +46,54 @@ quando uma plataforma exige presença pública contínua ou mídia de reunião.
 | Google Meet | OAuth e APIs REST/Eventos | `google_meet` |
 | Mídia do Meet | Developer Preview e consentimento exigido pelo Google | `google_meet_media_preview` |
 
+Os gates não podem ser ligados diretamente pela interface ou por um comando
+genérico. Cada conector só altera seu próprio gate depois de comprovar
+credenciais, permissões e readiness. Isso impede que uma preferência local
+transforme uma integração ainda inexistente em “ativa”.
+
+## Contrato de adaptadores
+
+`api_get_meeting_provider_readiness` retorna, para cada modo de integração, as
+capacidades reais, requisitos pendentes e o mecanismo de transparência usado
+pela plataforma. O contrato separa quatro casos que não devem ser confundidos:
+
+| Plataforma/modo | Presença e transparência | Participantes | Artefatos | Mídia ao vivo |
+| --- | --- | --- | --- | --- |
+| Teams, agente hospedado | participante nomeado `Empathy AI — gravação e transcrição` | sim | não | sim, depois de consentimento e confirmação de gravação |
+| Zoom RTMS | indicador nativo de gravação/stream do Zoom; não há participante Empathy | sim | não | sim |
+| Google Meet REST | nenhuma presença: leitura posterior de dados escolhidos | sim | sim | não |
+| Google Meet Media API | cliente conectado em nome do usuário autenticado | sim | não | sim, somente Developer Preview |
+
+Todos os adaptadores futuros começam `ready: false`. O desktop não simula
+presença, convite, consentimento ou mídia quando o runtime do provedor está
+ausente. Novos adaptadores devem implementar o mesmo contrato e a mesma máquina
+de estados/auditoria antes de expor uma ação na Nota.
+
+### Zoom
+
+O caminho escolhido é RTMS, não um “bot fantasma”. A documentação atual exige
+créditos do Developer Pack, uma General app, scopes RTMS e webhooks de início e
+fim. O stream pode entregar áudio, transcrição e eventos de participantes por
+WebSocket. A ativação continuará bloqueada até existir aplicação aprovada,
+validação de assinatura de webhook, política de consentimento e serviço de
+stream revisado.
+
+- [Introdução ao Zoom RTMS](https://developers.zoom.us/docs/rtms/meetings/getting-started/)
+- [Ciclo e requisitos do stream](https://developers.zoom.us/docs/rtms/meetings/work-with-streams/)
+
+### Google Meet
+
+O adaptador está dividido de propósito. A API REST pode listar conference
+records, participantes e entradas de transcrição; isso é apropriado para
+importação explícita posterior à reunião. A Media API permite mídia ao vivo,
+mas permanece em Developer Preview: projeto, principal OAuth e todos os
+participantes precisam estar inscritos, e os scopes de mídia são restritos.
+
+- [Visão geral da Google Meet REST API](https://developers.google.com/workspace/meet/api/guides/overview)
+- [Participantes](https://developers.google.com/workspace/meet/api/guides/participants)
+- [Artefatos e retenção](https://developers.google.com/workspace/meet/api/guides/artifacts)
+- [Requisitos da Meet Media API](https://developers.google.com/workspace/meet/media-api/guides/get-started)
+
 ## Recebimento de contexto
 
 Cada execução de Skill registra somente identificadores e metadados necessários

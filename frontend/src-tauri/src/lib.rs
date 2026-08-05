@@ -758,6 +758,7 @@ pub fn run() {
             participant_memory::api_merge_participant_memories,
             meeting_agent::api_get_meeting_agent_audit,
             meeting_agent::api_get_agent_service_readiness,
+            meeting_agent::api_get_meeting_provider_readiness,
             meeting_agent::api_pair_agent_service,
             meeting_agent::api_disconnect_agent_service,
             meeting_agent::api_request_teams_agent,
@@ -772,7 +773,6 @@ pub fn run() {
             integrations::api_get_selected_outlook_mail,
             integrations::api_create_note_from_outlook_event,
             integrations::api_get_integration_feature_flags,
-            integrations::api_save_integration_feature_flags,
             integrations::api_list_connected_accounts,
             integrations::api_disconnect_integration_account,
             // Custom OpenAI commands

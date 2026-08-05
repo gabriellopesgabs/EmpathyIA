@@ -5,7 +5,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useRouter } from 'next/navigation';
 import { CalendarDays, ExternalLink, Mail, Server, ShieldCheck, Unplug, UsersRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { AgentServiceReadiness, ConnectedAccount, IntegrationCapability, IntegrationFeatureFlags, IntegrationProvider, MicrosoftAuthReadiness, OutlookCalendarEvent, PreparedOutlookNote } from '@/types/integrations';
+import type { AgentServiceReadiness, ConnectedAccount, IntegrationCapability, IntegrationFeatureFlags, IntegrationProvider, MicrosoftAuthReadiness, OutlookCalendarEvent, PreparedOutlookNote, ProviderAdapterReadiness } from '@/types/integrations';
 
 const providerNames: Record<IntegrationProvider, string> = {
   microsoft: 'Microsoft Outlook',
@@ -31,6 +31,21 @@ const capabilityIcons: Record<IntegrationCapability['id'], typeof CalendarDays> 
   google_meet_media_preview: UsersRound,
 };
 
+const adapterModeLabels: Record<ProviderAdapterReadiness['mode'], string> = {
+  'hosted-visible-agent': 'Participante visível',
+  'realtime-media-stream': 'Stream de mídia da plataforma',
+  'meeting-artifacts': 'Participantes e artefatos',
+  'realtime-media-preview': 'Mídia ao vivo experimental',
+};
+
+const adapterStageLabels: Record<ProviderAdapterReadiness['stage'], string> = {
+  ready: 'Pronto',
+  'configuration-required': 'Configuração necessária',
+  'admin-approval-required': 'Aprovação administrativa',
+  'external-review-required': 'Revisão do provedor',
+  'developer-preview': 'Developer Preview',
+};
+
 export function IntegrationSettings() {
   const router = useRouter();
   const [capabilities, setCapabilities] = useState<IntegrationCapability[]>([]);
@@ -38,6 +53,7 @@ export function IntegrationSettings() {
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
   const [microsoftReadiness, setMicrosoftReadiness] = useState<MicrosoftAuthReadiness | null>(null);
   const [agentReadiness, setAgentReadiness] = useState<AgentServiceReadiness | null>(null);
+  const [adapterReadiness, setAdapterReadiness] = useState<ProviderAdapterReadiness[]>([]);
   const [agentEndpoint, setAgentEndpoint] = useState('');
   const [agentToken, setAgentToken] = useState('');
   const [pairingAgent, setPairingAgent] = useState(false);
@@ -49,18 +65,20 @@ export function IntegrationSettings() {
 
   const load = useCallback(async () => {
     try {
-      const [nextCapabilities, nextFlags, nextAccounts, nextMicrosoftReadiness, nextAgentReadiness] = await Promise.all([
+      const [nextCapabilities, nextFlags, nextAccounts, nextMicrosoftReadiness, nextAgentReadiness, nextAdapterReadiness] = await Promise.all([
         invoke<IntegrationCapability[]>('api_get_integration_capabilities'),
         invoke<IntegrationFeatureFlags>('api_get_integration_feature_flags'),
         invoke<ConnectedAccount[]>('api_list_connected_accounts'),
         invoke<MicrosoftAuthReadiness>('api_get_microsoft_auth_readiness'),
         invoke<AgentServiceReadiness>('api_get_agent_service_readiness'),
+        invoke<ProviderAdapterReadiness[]>('api_get_meeting_provider_readiness'),
       ]);
       setCapabilities(nextCapabilities);
       setFlags(nextFlags);
       setAccounts(nextAccounts);
       setMicrosoftReadiness(nextMicrosoftReadiness);
       setAgentReadiness(nextAgentReadiness);
+      setAdapterReadiness(nextAdapterReadiness);
       setAgentEndpoint(current => current || nextAgentReadiness.endpoint || '');
       setError('');
     } catch (reason) {
@@ -165,6 +183,23 @@ export function IntegrationSettings() {
       {microsoftAccount && <section className="outlook-calendar-preview"><header><div><p className="eyebrow">Próximos 14 dias</p><h3>Calendário do Outlook</h3></div><span>{loadingEvents ? 'Atualizando…' : `${outlookEvents.length} evento(s)`}</span></header>{!loadingEvents && outlookEvents.length === 0 && <p className="outlook-calendar-empty">Nenhuma reunião encontrada neste período.</p>}{outlookEvents.slice(0, 8).map(event => <article key={event.id}><time dateTime={event.starts_at}>{new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(event.starts_at))}</time><div><strong>{event.title}</strong><span>{event.organizer?.display_name || 'Organizador não informado'} · {event.attendees.length} convidado(s)</span></div>{event.meeting_provider && <small>{event.meeting_provider === 'microsoft-teams' ? 'Teams' : event.meeting_provider === 'google-meet' ? 'Google Meet' : event.meeting_provider === 'zoom' ? 'Zoom' : 'Reunião online'}</small>}<Button size="sm" variant="ghost" disabled={preparingEventId !== null} onClick={() => void prepareOutlookEvent(event)}>{preparingEventId === event.id ? 'Preparando…' : 'Preparar'}</Button></article>)}</section>}
 
       <section className="agent-service-settings"><header><div><p className="eyebrow">Infraestrutura administrada</p><h3><Server /> Serviço do Agente Teams</h3><p>O desktop controla o convite e a auditoria; mídia em tempo real roda em um serviço Windows/Azure separado.</p></div><span data-ready={agentReadiness?.ready}>{agentReadiness?.ready ? 'Pronto' : agentReadiness?.reachable ? 'Configuração incompleta' : 'Desconectado'}</span></header>{agentReadiness?.configured && <div className="agent-service-current"><strong>{agentReadiness.visible_name}</strong><small>{agentReadiness.endpoint}</small>{agentReadiness.missing.length > 0 && <p>Pendente: {agentReadiness.missing.join(' · ')}</p>}{agentReadiness.service_error && <p>{agentReadiness.service_error}</p>}<Button size="sm" variant="ghost" onClick={() => void disconnectAgent()}><Unplug />Desconectar</Button></div>}<div className="agent-service-pair"><label>Endpoint HTTPS<input value={agentEndpoint} onChange={event => setAgentEndpoint(event.target.value)} placeholder="https://agent.empathy.ai" /></label><label>Token de pareamento<input type="password" autoComplete="new-password" value={agentToken} onChange={event => setAgentToken(event.target.value)} placeholder="Fornecido pelo administrador" /></label><Button disabled={!agentEndpoint || agentToken.length < 24 || pairingAgent} onClick={() => void pairAgent()}>{pairingAgent ? 'Validando serviço…' : agentReadiness?.configured ? 'Parear novamente' : 'Parear serviço'}</Button></div><small>O token fica no cofre do sistema e nunca entra nas Notas. Parear não concede consentimento de reunião.</small></section>
+
+      <section className="meeting-adapter-readiness" aria-labelledby="meeting-adapters-title">
+        <header><div><p className="eyebrow">Capacidades reais</p><h3 id="meeting-adapters-title">Como o Empathy participa em cada plataforma</h3><p>Nem toda plataforma oferece um participante de IA. Cada adaptador declara presença, dados acessados e bloqueios antes de poder ser ativado.</p></div></header>
+        <div>{adapterReadiness.map((adapter, index) => <article key={`${adapter.provider}-${adapter.mode}`} data-ready={adapter.ready}>
+          <div className="meeting-adapter-heading"><strong>{providerNames[adapter.provider]}</strong><span>{adapterStageLabels[adapter.stage]}</span></div>
+          <p>{adapterModeLabels[adapter.mode]}</p>
+          <ul aria-label="Capacidades do adaptador">
+            <li data-enabled={adapter.reads_participants}>Participantes</li>
+            <li data-enabled={adapter.reads_artifacts}>Artefatos</li>
+            <li data-enabled={adapter.streams_realtime_media}>Mídia ao vivo</li>
+          </ul>
+          <small>{adapter.privacy_note}</small>
+          {adapter.missing.length > 0 && <details><summary>{adapter.missing.length} requisito(s) pendente(s)</summary><ul>{adapter.missing.map(item => <li key={item}>{item}</li>)}</ul></details>}
+          <a href={adapter.documentation_url} target="_blank" rel="noreferrer">Documentação oficial <ExternalLink aria-hidden="true" /></a>
+          {index === 0 && adapter.ready && <span className="sr-only">O adaptador de participante visível está pronto.</span>}
+        </article>)}</div>
+      </section>
 
       <div className="integration-provider-list">
         {providers.map(([provider, items]) => <section className="integration-provider" key={provider}>

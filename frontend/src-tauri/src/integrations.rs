@@ -383,10 +383,10 @@ fn capabilities() -> Vec<IntegrationCapability> {
         IntegrationCapability {
             id: "zoom_rtms",
             provider: IntegrationProvider::Zoom,
-            name: "Agente Empathy para Zoom",
-            description: "Eventos e mídia em tempo real por RTMS.",
+            name: "Zoom RTMS",
+            description: "Mídia e transcrição ao vivo com o indicador nativo do Zoom; não cria um participante Empathy.",
             stage: CapabilityStage::ExternalReview,
-            prerequisites: vec!["Zoom Developer app", "RTMS", "Revisão do Zoom"],
+            prerequisites: vec!["Developer Pack credits", "General app", "Scopes e webhooks RTMS"],
             reads_user_data: true,
             requires_explicit_action: true,
         },
@@ -394,7 +394,7 @@ fn capabilities() -> Vec<IntegrationCapability> {
             id: "google_meet",
             provider: IntegrationProvider::GoogleMeet,
             name: "Google Meet",
-            description: "Participantes, eventos e artefatos de transcrição.",
+            description: "Participantes e artefatos de transcrição escolhidos, sem entrar na chamada.",
             stage: CapabilityStage::ProviderSetup,
             prerequisites: vec!["Google Cloud project", "OAuth", "Meet REST API"],
             reads_user_data: true,
@@ -404,9 +404,9 @@ fn capabilities() -> Vec<IntegrationCapability> {
             id: "google_meet_media_preview",
             provider: IntegrationProvider::GoogleMeet,
             name: "Mídia em tempo real do Meet",
-            description: "Áudio em tempo real protegido por gate de Developer Preview.",
+            description: "Cliente de mídia em nome do usuário, protegido por gate de Developer Preview.",
             stage: CapabilityStage::DeveloperPreview,
-            prerequisites: vec!["Meet Media API preview", "Consentimento dos participantes"],
+            prerequisites: vec!["Projeto e todos os participantes no preview", "OAuth restrito", "WebRTC"],
             reads_user_data: true,
             requires_explicit_action: true,
         },
@@ -1672,15 +1672,6 @@ pub fn api_get_integration_feature_flags<R: Runtime>(
     app: AppHandle<R>,
 ) -> Result<IntegrationFeatureFlags, String> {
     read_flags(&app)
-}
-
-#[tauri::command]
-pub fn api_save_integration_feature_flags<R: Runtime>(
-    app: AppHandle<R>,
-    flags: IntegrationFeatureFlags,
-) -> Result<IntegrationFeatureFlags, String> {
-    write_flags(&app, &flags)?;
-    Ok(flags)
 }
 
 #[tauri::command]
