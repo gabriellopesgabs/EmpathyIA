@@ -87,7 +87,7 @@ const TranscriptSegment = memo(function TranscriptSegment({
             <div className="flex items-start gap-2">
                 <Tooltip>
                     <TooltipTrigger>
-                        <span className="text-xs text-gray-400 mt-1 flex-shrink-0 min-w-[50px]">
+                        <span className="mt-1 min-w-[50px] flex-shrink-0 text-xs text-muted-foreground">
                             {formatRecordingTime(timestamp)}
                         </span>
                     </TooltipTrigger>
@@ -99,11 +99,11 @@ const TranscriptSegment = memo(function TranscriptSegment({
                 </Tooltip>
                 <div className="flex-1">
                     {isStreaming ? (
-                        <div className="bg-gray-100 border border-gray-200 rounded-lg px-3 py-2">
-                            <p className="text-base text-gray-800 leading-relaxed">{displayText}</p>
+                        <div className="rounded-lg border border-border bg-muted/60 px-3 py-2">
+                            <p className="text-base leading-relaxed text-foreground">{displayText}</p>
                         </div>
                     ) : (
-                        <p className="text-base text-gray-800 leading-relaxed">{displayText}</p>
+                        <p className="text-base leading-relaxed text-foreground">{displayText}</p>
                     )}
                 </div>
             </div>
@@ -244,39 +244,39 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                 <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="text-center text-gray-500 mt-8"
+                    className="mt-8 text-center text-muted-foreground"
                 >
                     {isRecording ? (
                         <>
                             <div className="flex items-center justify-center mb-3">
                                 <div className={`w-3 h-3 rounded-full ${isPaused ? 'bg-orange-500' : 'bg-blue-500 animate-pulse'}`}></div>
                             </div>
-                            <p className="text-sm text-gray-600">
+                            <p className="text-sm text-muted-foreground">
                                 {isPaused ? 'Recording paused' : 'Listening for speech...'}
                             </p>
-                            <p className="text-xs mt-1 text-gray-400">
+                            <p className="mt-1 text-xs text-muted-foreground/75">
                                 {isPaused ? 'Click resume to continue recording' : 'Speak to see live transcription'}
                             </p>
                         </>
                     ) : (
                         <div className="flex flex-col items-center justify-center py-6 px-4">
-                            <p className="text-3xl font-bold font-serif text-gray-800 tracking-tight">Welcome to Empathy.AI</p>
-                            <p className="text-sm text-gray-500 mt-2 mb-8">Start recording or drop an audio file to see live transcription</p>
+                            <p className="font-serif text-3xl font-bold tracking-tight text-foreground">Welcome to Empathy.AI</p>
+                            <p className="mb-8 mt-2 text-sm text-muted-foreground">Start recording or drop an audio file to see live transcription</p>
                             
                             <motion.div
                                 whileHover={{ scale: 1.02 }}
                                 whileTap={{ scale: 0.98 }}
                                 onClick={() => openImportDialog()}
-                                className="w-full max-w-sm p-8 rounded-2xl border-2 border-dashed border-gray-200 bg-white hover:border-blue-400 hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col items-center justify-center space-y-4"
+                                className="flex w-full max-w-sm cursor-pointer flex-col items-center justify-center space-y-4 rounded-2xl border-2 border-dashed border-border bg-card p-8 transition-all duration-200 hover:border-primary/55 hover:bg-muted/35 hover:shadow-md"
                             >
-                                <div className="p-4 rounded-full bg-blue-50 text-blue-500">
+                                <div className="rounded-full bg-primary/10 p-4 text-primary">
                                     <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                                     </svg>
                                 </div>
                                 <div className="text-center">
-                                    <p className="text-sm font-semibold text-gray-700">Import Pre-recorded Audio</p>
-                                    <p className="text-xs text-gray-400 mt-1">Drag and drop your audio file anywhere or click here to browse</p>
+                                    <p className="text-sm font-semibold text-foreground">Import Pre-recorded Audio</p>
+                                    <p className="mt-1 text-xs text-muted-foreground">Drag and drop your audio file anywhere or click here to browse</p>
                                 </div>
                             </motion.div>
                         </div>
@@ -326,12 +326,12 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                     {(hasMore || isLoadingMore) && !isRecording && segments.length > 0 && (
                         <div ref={loadMoreTriggerRef} className="flex justify-center items-center py-4 mt-2">
                             {isLoadingMore ? (
-                                <div className="flex items-center gap-2 text-gray-500">
-                                    <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                                <div className="flex items-center gap-2 text-muted-foreground">
+                                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-foreground/70" />
                                     <span className="text-sm">Loading more...</span>
                                 </div>
                             ) : hasMore && totalCount > 0 ? (
-                                <span className="text-sm text-gray-400">
+                                <span className="text-sm text-muted-foreground">
                                     Showing {loadedCount} of {totalCount} segments
                                 </span>
                             ) : null}
@@ -344,7 +344,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            className="flex items-center gap-2 mt-4 text-gray-500"
+                            className="mt-4 flex items-center gap-2 text-muted-foreground"
                         >
                             <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
                             <span className="text-sm">Listening...</span>
@@ -382,12 +382,12 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                     {(hasMore || isLoadingMore) && !isRecording && segments.length > 0 && (
                         <div ref={loadMoreTriggerRef} className="flex justify-center items-center py-4 mt-2">
                             {isLoadingMore ? (
-                                <div className="flex items-center gap-2 text-gray-500">
-                                    <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                                <div className="flex items-center gap-2 text-muted-foreground">
+                                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-foreground/70" />
                                     <span className="text-sm">Loading more...</span>
                                 </div>
                             ) : hasMore && totalCount > 0 ? (
-                                <span className="text-sm text-gray-400">
+                                <span className="text-sm text-muted-foreground">
                                     Showing {loadedCount} of {totalCount} segments
                                 </span>
                             ) : null}
@@ -400,7 +400,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            className="flex items-center gap-2 mt-4 text-gray-500"
+                            className="mt-4 flex items-center gap-2 text-muted-foreground"
                         >
                             <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
                             <span className="text-sm">Listening...</span>
