@@ -1,0 +1,65 @@
+# Integrações de reuniões e Agente Empathy
+
+Status: decisão arquitetural ativa  
+Schema dos contratos: 1
+
+## Decisão
+
+O Empathy terá uma camada única de integrações para Outlook, Microsoft Teams,
+Zoom e Google Meet. O aplicativo desktop continua sendo a autoridade para
+revisão e persistência das Notas Markdown; serviços hospedados existem somente
+quando uma plataforma exige presença pública contínua ou mídia de reunião.
+
+## Invariantes
+
+1. Calendário e e-mail são consentimentos independentes.
+2. E-mail só é consultado após ação explícita e somente na caixa autenticada ou
+   compartilhada que o usuário selecionou de forma inequívoca.
+3. Nenhum token OAuth, segredo ou corpo de e-mail é salvo em Markdown.
+4. Tokens ficam no cofre de credenciais do sistema operacional.
+5. Toda fonte enviada a um modelo aparece em uma prévia e gera recibo de fonte.
+6. Um agente em reunião usa identidade visível e registra presença,
+   consentimento, transcrição, pausa, saída e erro.
+7. Inferências sobre pessoas são marcadas como hipótese; o usuário pode
+   corrigir, mesclar, remover ou apagar a memória correspondente.
+8. Integrações começam desativadas e falham fechadas quando configuração,
+   consentimento ou aprovação externa estiverem ausentes.
+
+## Limites de confiança
+
+- **Desktop Tauri:** autenticação delegada, seleção de contexto, Skills locais,
+  revisão humana, Markdown e grafo.
+- **Serviço do Agente:** entrada na reunião, eventos e mídia autorizada. Não é
+  fonte canônica de Notas.
+- **Provedor:** identidade, políticas da reunião, lobby, consentimento nativo e
+  disponibilidade dos artefatos.
+
+## Capacidades por provedor
+
+| Capacidade | Estado necessário | Gate |
+| --- | --- | --- |
+| Outlook Calendar | Entra app, OAuth PKCE, `Calendars.ReadBasic` | `outlook_calendar` |
+| Contexto de e-mail | consentimento incremental e mensagem selecionada | `outlook_mail_context` |
+| Agente Teams | serviço hospedado, app Teams e consentimento do tenant | `teams_agent` |
+| Zoom | aplicação Zoom aprovada e RTMS | `zoom_rtms` |
+| Google Meet | OAuth e APIs REST/Eventos | `google_meet` |
+| Mídia do Meet | Developer Preview e consentimento exigido pelo Google | `google_meet_media_preview` |
+
+## Recebimento de contexto
+
+Cada execução de Skill registra somente identificadores e metadados necessários
+para explicar suas fontes: tipo, provedor, título, data, seleção explícita e se
+o conteúdo foi incluído. O recibo não duplica o corpo original do e-mail.
+
+## Persistência
+
+- `Application Support/Empathy/integrations/feature-flags.json`: gates locais.
+- Cofre do sistema: tokens OAuth.
+- Pasta da Nota: Markdown revisado, memória de participantes e auditoria.
+- SQLite: índice operacional reconstruível, nunca fonte canônica.
+
+## Falhas e revogação
+
+Desconectar uma conta remove tokens do cofre e impede novas leituras. Notas já
+aprovadas pelo usuário permanecem portáteis, com recibos suficientes para
+explicar a origem, mas sem credenciais ou cópias ocultas de mensagens.

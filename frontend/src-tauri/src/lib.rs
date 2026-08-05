@@ -39,6 +39,7 @@ pub mod config;
 pub mod console_utils;
 pub mod database;
 pub mod groq;
+pub mod integrations;
 pub mod knowledge;
 pub mod meeting_files;
 pub mod notifications;
@@ -748,6 +749,11 @@ pub fn run() {
             skills::api_migrate_custom_templates,
             skills::api_run_skill,
             skills::api_cancel_skill,
+            integrations::api_get_integration_capabilities,
+            integrations::api_get_integration_feature_flags,
+            integrations::api_save_integration_feature_flags,
+            integrations::api_list_connected_accounts,
+            integrations::api_disconnect_integration_account,
             // Custom OpenAI commands
             api::api_save_custom_openai_config,
             api::api_get_custom_openai_config,

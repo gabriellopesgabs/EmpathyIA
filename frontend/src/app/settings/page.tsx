@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AudioWaveform, Mic, Settings2, Sparkles } from 'lucide-react';
+import { AudioWaveform, Link2, Mic, Settings2, Sparkles } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { invoke } from '@tauri-apps/api/core';
 import { TranscriptSettings } from '@/components/TranscriptSettings';
 import { RecordingSettings } from '@/components/RecordingSettings';
 import { PreferenceSettings } from '@/components/PreferenceSettings';
 import { SummaryModelSettings } from '@/components/SummaryModelSettings';
+import { IntegrationSettings } from '@/components/IntegrationSettings';
 import { useConfig } from '@/contexts/ConfigContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -16,6 +17,7 @@ const TABS = [
   { value: 'recording', label: 'Gravação', description: 'Áudio, dispositivos e salvamento', icon: Mic },
   { value: 'transcriptionModels', label: 'Transcrição', description: 'Idioma e reconhecimento de fala', icon: AudioWaveform },
   { value: 'summaryModels', label: 'Inteligência', description: 'Resumos e modelos locais', icon: Sparkles },
+  { value: 'integrations', label: 'Integrações', description: 'Outlook e agentes de reunião', icon: Link2 },
 ] as const;
 
 type SettingsTab = typeof TABS[number]['value'];
@@ -64,6 +66,7 @@ export default function SettingsPage() {
           <TabsContent value="recording"><RecordingSettings /></TabsContent>
           <TabsContent value="transcriptionModels"><TranscriptSettings transcriptModelConfig={transcriptModelConfig} setTranscriptModelConfig={setTranscriptModelConfig} /></TabsContent>
           <TabsContent value="summaryModels"><SummaryModelSettings /></TabsContent>
+          <TabsContent value="integrations"><IntegrationSettings /></TabsContent>
         </div>
       </Tabs>
     </div>
