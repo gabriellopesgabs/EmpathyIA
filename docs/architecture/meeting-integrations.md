@@ -56,8 +56,24 @@ o conteúdo foi incluído. O recibo não duplica o corpo original do e-mail.
 
 - `Application Support/Empathy/integrations/feature-flags.json`: gates locais.
 - Cofre do sistema: tokens OAuth.
-- Pasta da Nota: Markdown revisado, memória de participantes e auditoria.
+- Pasta da Nota: Markdown revisado e auditoria da reunião.
+- `People/*.md` no workspace: memória portátil e editável de participantes.
 - SQLite: índice operacional reconstruível, nunca fonte canônica.
+
+## Memória de participantes
+
+Uma identidade do calendário só entra em `People/*.md` depois que o usuário a
+seleciona e confirma na Nota. O backend relê os metadados do evento anexados ao
+Markdown e rejeita endereços que não pertençam àquele evento. O arquivo separa
+campos confirmados, recibos das fontes, contexto escrito pelo usuário e uma
+seção visível de hipóteses ainda a revisar.
+
+O usuário pode corrigir todos os campos, mesclar identidades ou remover o
+arquivo. Remoção e origem de uma mesclagem vão para
+`.empathy-trash/participants`, permitindo recuperação manual. O salvamento usa
+controle otimista por `updated_at`; uma alteração externa nunca é sobrescrita
+silenciosamente. O índice conecta o documento `person` ao mesmo nó usado pelas
+reuniões, e continua sendo integralmente reconstruível a partir do Markdown.
 
 ## Configuração Microsoft
 

@@ -48,6 +48,7 @@ pub mod onboarding;
 pub mod openai;
 pub mod openrouter;
 pub mod parakeet_engine;
+pub mod participant_memory;
 pub mod skills;
 pub mod state;
 pub mod summary;
@@ -749,6 +750,11 @@ pub fn run() {
             skills::api_migrate_custom_templates,
             skills::api_run_skill,
             skills::api_cancel_skill,
+            participant_memory::api_list_participant_memories,
+            participant_memory::api_confirm_note_participants,
+            participant_memory::api_save_participant_memory,
+            participant_memory::api_delete_participant_memory,
+            participant_memory::api_merge_participant_memories,
             integrations::api_get_integration_capabilities,
             integrations::api_get_microsoft_auth_readiness,
             integrations::api_connect_microsoft_calendar,

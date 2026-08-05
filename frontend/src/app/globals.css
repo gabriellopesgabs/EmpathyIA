@@ -147,6 +147,34 @@
   .outlook-context-loaded svg { width: 12px; height: 12px; }
   .outlook-context-loaded summary { cursor: pointer; font-size: 10px; }
   .outlook-context-loaded pre { max-height: 150px; overflow: auto; margin-top: 5px; padding: 7px; border: 1px solid hsl(var(--border)); border-radius: 5px; background: hsl(var(--background)); color: hsl(var(--foreground)); font: 9px/1.45 ui-monospace, SFMono-Regular, monospace; white-space: pre-wrap; }
+  .participant-memory-panel { margin: 11px 13px 0; padding: 10px; border: 1px solid hsl(var(--border)); border-radius: 9px; }
+  .participant-memory-panel > summary { cursor: pointer; font-size: 11px; font-weight: 650; }
+  .participant-memory-panel > summary span { float: right; color: hsl(var(--muted-foreground)); font-weight: 500; }
+  .participant-memory-panel > p, .participant-memory-status { margin-top: 6px; color: hsl(var(--muted-foreground)); font-size: 9px; line-height: 1.45; }
+  .participant-memory-candidates { display: grid; gap: 4px; margin-top: 9px; }
+  .participant-memory-candidates label { display: flex; gap: 7px; padding: 5px; border-radius: 6px; font-size: 10px; }
+  .participant-memory-candidates label[data-confirmed="true"] { color: hsl(var(--muted-foreground)); }
+  .participant-memory-candidates input { margin-top: 2px; accent-color: hsl(var(--primary)); }
+  .participant-memory-candidates span, .participant-memory-candidates small { display: block; }
+  .participant-memory-candidates small { margin-top: 1px; color: hsl(var(--muted-foreground)); font-size: 9px; }
+  .participant-memory-panel > button { height: 27px; margin-top: 8px; font-size: 10px; }
+  .participant-memory-list { display: grid; gap: 4px; margin-top: 9px; }
+  .participant-memory-list > button { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 7px; border-radius: 6px; text-align: left; }
+  .participant-memory-list > button:hover { background: hsl(var(--muted) / .7); }
+  .participant-memory-list span, .participant-memory-list strong, .participant-memory-list small { display: block; }
+  .participant-memory-list strong { font-size: 10px; }
+  .participant-memory-list small { margin-top: 2px; color: hsl(var(--muted-foreground)); font-size: 9px; }
+  .participant-memory-list svg { width: 12px; }
+  .participant-memory-editor { display: grid; gap: 7px; margin-top: 10px; padding-top: 10px; border-top: 1px solid hsl(var(--border)); }
+  .participant-memory-editor h4 { font-size: 11px; }
+  .participant-memory-editor label { display: grid; gap: 3px; color: hsl(var(--muted-foreground)); font-size: 9px; }
+  .participant-memory-editor input, .participant-memory-editor textarea, .participant-memory-editor select, .participant-memory-merge select { width: 100%; padding: 6px 7px; border: 1px solid hsl(var(--border)); border-radius: 6px; background: hsl(var(--background)); color: hsl(var(--foreground)); font-size: 10px; }
+  .participant-memory-editor textarea { min-height: 64px; resize: vertical; }
+  .participant-memory-editor > div:not(.participant-memory-actions):not(.participant-memory-merge) { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .participant-hypothesis { padding: 7px; border-radius: 6px; background: hsl(42 70% 50% / .08); }
+  .participant-memory-actions, .participant-memory-merge { display: flex; align-items: center; gap: 5px; }
+  .participant-memory-actions button:last-child { margin-left: auto; }
+  .participant-memory-merge select { min-width: 0; }
   .skill-actions { display: flex; justify-content: flex-end; gap: 5px; padding: 12px 13px; }
   .skill-library { margin: 0 13px 14px; border-top: 1px solid hsl(var(--border)); padding-top: 10px; }
   .skill-library > div { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 7px; }
