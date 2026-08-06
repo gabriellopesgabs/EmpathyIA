@@ -4,11 +4,13 @@ on:
   pull_request:
     paths:
       - "services/teams-agent/**"
+      - "services/teams-agent-tests/**"
       - ".github/workflows/teams-agent-check.yml"
   push:
     branches: [main]
     paths:
       - "services/teams-agent/**"
+      - "services/teams-agent-tests/**"
       - ".github/workflows/teams-agent-check.yml"
 
 permissions:
@@ -21,12 +23,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 6.0.x
+          dotnet-version: 8.0.x
           cache: true
-          cache-dependency-path: services/teams-agent/Empathy.TeamsAgent.csproj
+          cache-dependency-path: |
+            services/teams-agent/Empathy.TeamsAgent.csproj
+            services/teams-agent-tests/Empathy.TeamsAgent.Tests.csproj
       - name: Restore reviewed Microsoft media SDK
-        working-directory: services/teams-agent
-        run: dotnet restore
-      - name: Build fail-closed service boundary
+        run: dotnet restore services/teams-agent-tests/Empathy.TeamsAgent.Tests.csproj
+      - name: Build fail-closed service boundary and runtime contract
         working-directory: services/teams-agent
         run: dotnet build --configuration Release --no-restore
+      - name: Test provider-receipt state machine
+        run: dotnet test services/teams-agent-tests/Empathy.TeamsAgent.Tests.csproj --configuration Release --no-restore

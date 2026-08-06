@@ -16,7 +16,8 @@ paths:
     post:
       security: [{ pairingToken: [] }]
       responses:
-        "200": { description: Provider-confirmed session and events }
+        "201": { description: Session created only after at least one provider receipt }
+        "502": { description: Provider join failed; no session is retained }
         "503": { description: Provider runtime or administrative prerequisites are missing }
   /v1/sessions/{sessionId}:
     get:
@@ -28,6 +29,7 @@ paths:
           schema: { type: string, format: uuid }
       responses:
         "200": { description: Current session and events }
+        "502": { description: Provider refresh failed; no event is fabricated }
         "404": { description: Unknown session }
   /v1/sessions/{sessionId}/leave:
     post:
@@ -39,6 +41,8 @@ paths:
           schema: { type: string, format: uuid }
       responses:
         "200": { description: Provider-confirmed leaving and left events }
+        "502": { description: Provider leave failed; no event is fabricated }
+        "404": { description: Unknown session }
 components:
   securitySchemes:
     pairingToken:
