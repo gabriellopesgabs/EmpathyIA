@@ -44,7 +44,31 @@ release. O artefato não foi notarizado e não deve ser distribuído publicament
 | agente Teams | máquina de estados, auditoria, endpoint HTTPS e serviço fail-closed |
 | Zoom e Meet | registry de capacidades e requisitos pendentes, sempre desativado sem configuração |
 | macOS real | bundle aberto e interface renderizada |
-| Windows/Linux/macOS Intel | matriz de CI configurada; execução depende dos runners GitHub |
+| Windows/Linux/macOS Intel | matriz do GitHub Actions `31053471455` concluída com sucesso nas quatro plataformas |
+
+## Auditoria pós-merge
+
+O PR #9 foi integrado à `main` no commit
+`3d211e68a9b6a289a293674bfbe186204cac3aed`. A auditoria posterior confirmou os
+builds e o fluxo local, mas também identificou que o serviço Teams ainda
+registra `UnavailableTeamsCallRuntime`. Portanto, a fronteira, a autenticação e
+a máquina de estados estão implementadas, mas presença e mídia reais ainda não
+estão concluídas.
+
+O serviço agora possui um contrato explícito `ITeamsCallRuntime`, armazenamento
+tipado de sessões e exige recibos do provedor para cada transição. Eventos
+duplicados são idempotentes; transcrição sem confirmação de gravação e
+transições impossíveis são rejeitadas. Isso torna a lacuna mensurável, mas não
+a transforma em integração real.
+
+Validação local adicional executada em container .NET 8:
+
+- seis testes do ciclo de sessão aprovados;
+- `/health` respondeu `200` sem revelar configuração;
+- `/v1/readiness` sem token respondeu `401`;
+- `/v1/readiness` autenticado respondeu `ready: false` e enumerou exatamente
+  os oito requisitos ausentes, inclusive `teams-graph-call-runtime`;
+- nenhum evento de presença ou transcrição foi criado nesse estado.
 
 ## Testes que exigem infraestrutura externa
 
@@ -66,3 +90,5 @@ O teste ponta a ponta real deve ser executado quando esses pré-requisitos
 existirem: criar uma Nota do evento, selecionar um trecho ou contexto, executar
 **Preparar reunião**, revisar, inserir, salvar, reabrir e localizar o resultado
 no grafo; depois repetir com uma reunião de teste e consentimento explícito.
+O roteiro executável e a evidência mínima estão em
+[`MEETING_INTELLIGENCE_E2E.md`](MEETING_INTELLIGENCE_E2E.md).
